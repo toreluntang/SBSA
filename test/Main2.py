@@ -9,10 +9,11 @@ import numpy as np
 from cloudant.client import Cloudant
 from keras.preprocessing.text import Tokenizer
 from random import shuffle
+import config
 
 
-client = Cloudant('torc', 'mitkodeorderlangt', account='torc', connect=True)
-db = client['fb_data']
+client = Cloudant(config.dbacc, config.dbpass, account=config.dbacc, connect=True)
+db = client[config.dbname]
 
 ddoc = db.get_view_result(ddoc_id='view', view_name='reaction_aggregated', reduce=True, group=True, raw_result=True)
 print(ddoc)
