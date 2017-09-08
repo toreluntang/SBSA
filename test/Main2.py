@@ -11,7 +11,7 @@ from keras.preprocessing.text import Tokenizer
 from random import shuffle
 
 
-client = Cloudant('torc', 'mitkodeorderlangt', account='torc', connect=True)
+client = Cloudant('torc', '', account='torc', connect=True)
 db = client['fb_data']
 
 ddoc = db.get_view_result(ddoc_id='view', view_name='reaction_aggregated', reduce=True, group=True, raw_result=True)
