@@ -1,0 +1,19 @@
+# the docker-compose.yml
+version: "3"
+services:
+  zookeeper:
+    image: zookeeper
+    ports:
+      - "2181:2181"
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_PROTOCOL_NAME: "INSIDE:PLAINTEXT"
+      KAFKA_ADVERTISED_PORT: 9092
+#      KAFKA_PORT: 9092
+      KAFKA_ADVERTISED_HOST_NAME: 192.168.8.103
+#      KAFKA_ADVERTISED_NAME: 192.168.8.103
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
