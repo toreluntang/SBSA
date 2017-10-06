@@ -3,6 +3,7 @@ import time
 import argparse
 from confluent_kafka import Producer
 
+
 def check_int(val):
     try:
         ival = int(val)
@@ -13,7 +14,7 @@ def check_int(val):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--token', dest='fb_app_token', default='958677020829333|hgcyyndMsmCOChj6npV6Pg87yYE', help='The facebook API key, which can be fetched from https://developers.facebook.com/tools/explorer/145634995501895/')
+    parser.add_argument('--token', dest='fb_app_token', help='The facebook API key, which can be fetched from https://developers.facebook.com/tools/explorer/145634995501895/')
     parser.add_argument('--page_id', dest='fb_page_id', help='The page id from facebook. From https://www.facebook.com/FoxNews/ the page id is FoxNews.')
     parser.add_argument('--server', dest='kafka_bootstrap_server', help='The kafka server')
     parser.add_argument('--topic', dest='kafka_topic', help='The topic the message should be produced as')
@@ -21,12 +22,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    fb_app_token = args.fb_app_token #'958677020829333|hgcyyndMsmCOChj6npV6Pg87yYE'
-    fb_page_id = args.fb_page_id #FoxNews
-    kafka_bootstrap_server = args.kafka_bootstrap_server #'10.26.50.252:9092'
-    kafka_topic = args.kafka_topic  #'wiki-result'
-    sleep_time = args.sleep_time #120
-
+    fb_app_token = args.fb_app_token
+    fb_page_id = args.fb_page_id
+    kafka_bootstrap_server = args.kafka_bootstrap_server
+    kafka_topic = args.kafka_topic
+    sleep_time = args.sleep_time
 
     p = Producer({'bootstrap.servers': kafka_bootstrap_server})
 
