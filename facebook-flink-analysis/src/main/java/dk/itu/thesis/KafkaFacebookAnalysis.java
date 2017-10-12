@@ -9,10 +9,7 @@ import edu.stanford.nlp.rnn.RNNCoreAnnotations;
 import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
 import edu.stanford.nlp.trees.Tree;
 import edu.stanford.nlp.util.CoreMap;
-import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.FoldFunction;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.io.jdbc.JDBCOutputFormat;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -116,19 +113,19 @@ public class KafkaFacebookAnalysis {
                     }
                 });
 
+        SingleOutputStreamOperator<Tuple2<String, String>> messageSentimentTupleStream = jsonObjectStream.map(new SentimentMapper());
 
-
-        DataStream<Tuple2<String, String>> messageSentimentTupleStream = keyedStream
-                .timeWindow(Time.seconds(5))
-
-                .fold(new Tuple2<>("", ""), new FoldFunction<JsonObject, Tuple2<String, String>>() {
-                    @Override
-                    public Tuple2<String, String> fold(Tuple2<String, String> acc, JsonObject event) {
-                        acc.f0 = event.get("message").getAsString();
-                        acc.f1 += getSentiment(event.get("message").getAsString());
-                        return acc;
-                    }
-                });
+//        DataStream<Tuple2<String, String>> messageSentimentTupleStream = keyedStream
+//                .timeWindow(Time.seconds(5))
+//
+//                .fold(new Tuple2<>("", ""), new FoldFunction<JsonObject, Tuple2<String, String>>() {
+//                    @Override
+//                    public Tuple2<String, String> fold(Tuple2<String, String> acc, JsonObject event) {
+//                        acc.f0 = event.get("message").getAsString();
+//                        acc.f1 += getSentiment(event.get("message").getAsString());
+//                        return acc;
+//                    }
+//                });
 
 
 //        messageSentimentTupleStream.print();
@@ -151,7 +148,7 @@ public class KafkaFacebookAnalysis {
                     @Override
                     public Row map(Tuple2<String, String> msgSentTuple) throws Exception {
                         Row row = new Row(2);
-                        row.setField(0, msgSentTuple.f0.substring(0, 512));
+                        row.setField(0, msgSentTuple.f0.length() > 512 ? msgSentTuple.f0.substring(0, 512) : msgSentTuple.f0);
                         row.setField(1, msgSentTuple.f1);
                         return row;
                     }
@@ -167,59 +164,42 @@ public class KafkaFacebookAnalysis {
     }
 
 
-    public static String getSentiment(String text) {
+    public static class SentimentMapper extends RichMapFunction<JsonObject, Tuple2<String, String>> {
 
-        Properties props = new Properties();
-        props.setProperty("annotators", "tokenize, ssplit, parse, sentiment");
-        StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-        int mainSentiment = 0;
-
-        Long textLength = 0L;
-        int sumOfValues = 0;
-
-        if (text != null && text.length() > 0) {
-
-            int longest = 0;
-            Annotation annotation = pipeline.process(text);
-
-            for (CoreMap sentence : annotation.get(CoreAnnotations.SentencesAnnotation.class)) {
-
-                Tree tree = sentence.get(SentimentCoreAnnotations.AnnotatedTree.class);
-                int sentiment = RNNCoreAnnotations.getPredictedClass(tree);
-                String partText = sentence.toString();
-
-                if (partText.length() > longest) {
-                    textLength += partText.length();
-                    sumOfValues = sumOfValues + sentiment * partText.length();
-
-                    System.out.println(sentiment + " " + partText);
-                }
-            }
-        }
-
-
-        return ("Overall: " + (double) sumOfValues / textLength);
-
-    }
-
-
-    public static class sentiMapper extends RichFlatMapFunction<JsonObject, Tuple2<String, String>> {
-        private StanfordCoreNLP pipeline;
+        private SentimentProcessor processor;
 
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
-            Properties props = new Properties();
-            props.setProperty("annotators", "tokenize, ssplit, parse, sentiment");
-            StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-
+            processor = SentimentProcessor.create();
         }
 
         @Override
-        public void flatMap(JsonObject value, Collector<Tuple2<String, String>> out) throws Exception {
-
+        public Tuple2<String, String> map(JsonObject value) throws Exception {
+            String msg = value.get("message").getAsString();
+            return new Tuple2<>(msg, processor.getSentiment(msg));
         }
     }
 
+/*
+
+
+        DataStream<Tuple2<String, String>> messageSentimentTupleStream = keyedStream
+                .timeWindow(Time.seconds(5))
+
+                .fold(
+                    new Tuple2<>("", ""),
+                    new FoldFunction<JsonObject, Tuple2<String, String>>() {
+                    @Override
+                    public Tuple2<String, String> fold(Tuple2<String, String> acc, JsonObject event) {
+                        acc.f0 = event.get("message").getAsString();
+                        acc.f1 += getSentiment(event.get("message").getAsString());
+                        return acc;
+                    }
+                });
+
+
+
+ */
 }
 
