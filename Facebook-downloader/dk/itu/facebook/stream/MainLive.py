@@ -1,6 +1,7 @@
 import facebook
 import time
 import argparse
+import json
 from confluent_kafka import Producer
 
 
@@ -43,7 +44,7 @@ if __name__ == "__main__":
 
         if current_id != previous_id:
             previous_id = current_id
-            p.produce(kafka_topic, str(post_and_reactions['posts']['data']).encode('utf-8'))
+            p.produce(kafka_topic, json.dumps(post_and_reactions['posts']['data']))
             print("Message has been produced")
 
         print("Sleeping for {} seconds".format(sleep_time))

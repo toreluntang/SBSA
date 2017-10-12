@@ -3,6 +3,7 @@ import time
 import requests
 import argparse
 import sys
+import json
 from dateutil import parser as date_parser
 from confluent_kafka import Producer
 
@@ -64,7 +65,7 @@ if __name__ == "__main__":
                 # exit with zero means successful termination
                 sys.exit(0)
 
-            p.produce('wiki-result', str(d).encode('utf-8'))
+            p.produce('wiki-result', json.dumps(d))
             # print(str(d))
         #Flush after each iteration?
         p.flush()
