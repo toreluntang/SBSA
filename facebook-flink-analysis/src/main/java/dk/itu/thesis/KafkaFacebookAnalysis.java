@@ -1,8 +1,6 @@
 package dk.itu.thesis;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 
 import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.pipeline.Annotation;
@@ -14,10 +12,12 @@ import edu.stanford.nlp.util.CoreMap;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.FoldFunction;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.io.jdbc.JDBCOutputFormat;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -62,6 +62,12 @@ public class KafkaFacebookAnalysis {
 
             if (null == topic)
                 System.err.println("No kafka topic specified. Please add --topic <topic>");
+
+            if (null == user)
+                System.err.println("No elephant user specified. Please add --sqluser <user>");
+
+            if (null == password)
+                System.err.println("No elephant password specified. Please add --sqlpass <password>");
             return;
         }
 
@@ -90,15 +96,29 @@ public class KafkaFacebookAnalysis {
                     @Override
                     public void flatMap(String value, Collector<JsonObject> out) throws Exception {
                         JsonParser jsonParser = new JsonParser();
+                        try {
+                            JsonElement jsonElement = jsonParser.parse(value);
 
-                        for (JsonElement je : jsonParser.parse(value).getAsJsonArray()) {
-                            System.out.println("---" + je);
-                            out.collect(je.getAsJsonObject());
+                            if (jsonElement instanceof JsonObject) {
+                                out.collect(jsonElement.getAsJsonObject());
+
+                            } else if (jsonElement instanceof JsonArray) {
+
+                                for (JsonElement je : jsonElement.getAsJsonArray()) {
+                                    System.out.println("---" + je);
+                                    out.collect(je.getAsJsonObject());
+                                }
+                            }
+                        } catch (JsonSyntaxException jse) {
+                            // Do nothing i guess.
+                            // Maybe print "not parsable"
                         }
                     }
                 });
 
-        // Not tested. Should hopefully make a keyed stream with id as the key
+        /*
+         * Fairly sure this is not really needed
+         *
         KeyedStream<JsonObject, String> keyedStream = jsonObjectStream.keyBy(
                 new KeySelector<JsonObject, String>() {
                     @Override
@@ -111,10 +131,12 @@ public class KafkaFacebookAnalysis {
                     }
                 }
         );
+        */
 
 
         DataStream<Tuple2<String, String>> messageSentimentTupleStream = keyedStream
                 .timeWindow(Time.seconds(5))
+
                 .fold(new Tuple2<>("", ""), new FoldFunction<JsonObject, Tuple2<String, String>>() {
                     @Override
                     public Tuple2<String, String> fold(Tuple2<String, String> acc, JsonObject event) {
@@ -123,6 +145,7 @@ public class KafkaFacebookAnalysis {
                         return acc;
                     }
                 });
+
 
 //        messageSentimentTupleStream.print();
 //
@@ -135,7 +158,7 @@ public class KafkaFacebookAnalysis {
                 .setUsername(user)
                 .setPassword(password)
                 .setQuery(query)
-                .setSqlTypes(new int[] { Types.VARCHAR, Types.VARCHAR }) //set the types
+                .setSqlTypes(new int[]{Types.VARCHAR, Types.VARCHAR}) //set the types
                 .finish();
 
 
@@ -196,4 +219,23 @@ public class KafkaFacebookAnalysis {
     }
 
 
+    public static class sentiMapper extends RichFlatMapFunction<JsonObject, Tuple2<String, String>> {
+        private StanfordCoreNLP pipeline;
+
+        @Override
+        public void open(Configuration parameters) throws Exception {
+            super.open(parameters);
+            Properties props = new Properties();
+            props.setProperty("annotators", "tokenize, ssplit, parse, sentiment");
+            StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+
+        }
+
+        @Override
+        public void flatMap(JsonObject value, Collector<Tuple2<String, String>> out) throws Exception {
+
+        }
+    }
+
 }
+
