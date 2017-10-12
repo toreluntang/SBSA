@@ -3,6 +3,7 @@ import time
 import requests
 import argparse
 import sys
+import json
 from dateutil import parser as date_parser
 from confluent_kafka import Producer
 
@@ -43,7 +44,7 @@ if __name__ == "__main__":
 
     print("Processes first batch of 100")
     for d in posts['data']:
-        p.produce('wiki-result', str(d).encode('utf-8'))
+        p.produce(kafka_topic, json.dumps(d))
     p.flush()
 
     while 1:
@@ -56,7 +57,6 @@ if __name__ == "__main__":
         print("Processes next batch")
         for d in posts['data']:
             post_from = date_parser.parse(d['created_time'])
-
             emojis_from = date_parser.parse(fb_stop_date)
 
             if post_from < emojis_from:
@@ -64,7 +64,7 @@ if __name__ == "__main__":
                 # exit with zero means successful termination
                 sys.exit(0)
 
-            p.produce('wiki-result', str(d).encode('utf-8'))
+            p.produce(kafka_topic, json.dumps(d))
             # print(str(d))
         #Flush after each iteration?
         p.flush()
