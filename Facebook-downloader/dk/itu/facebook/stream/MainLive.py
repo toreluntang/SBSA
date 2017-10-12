@@ -47,5 +47,6 @@ if __name__ == "__main__":
             p.produce(kafka_topic, json.dumps(post_and_reactions['posts']['data']))
             print("Message has been produced")
 
+        p.flush()
         print("Sleeping for {} seconds".format(sleep_time))
         time.sleep(sleep_time)
