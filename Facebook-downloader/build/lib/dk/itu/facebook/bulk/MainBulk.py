@@ -64,7 +64,7 @@ if __name__ == "__main__":
                 # exit with zero means successful termination
                 sys.exit(0)
 
-            p.produce('wiki-result', json.dumps(d))
+            p.produce(kafka_topic, json.dumps(d))
             # print(str(d))
         #Flush after each iteration?
         p.flush()
