@@ -116,22 +116,6 @@ public class KafkaFacebookAnalysis {
                     }
                 });
 
-        /*
-         * Fairly sure this is not really needed
-         *
-        KeyedStream<JsonObject, String> keyedStream = jsonObjectStream.keyBy(
-                new KeySelector<JsonObject, String>() {
-                    @Override
-                    public String getKey(JsonObject value) throws Exception {
-
-                        if (value.has("id") && !value.get("id").isJsonNull()) {
-                            return value.get("id").getAsString(); // id:jsonobject
-                        }
-                        return "no_id"; // Not sure about this
-                    }
-                }
-        );
-        */
 
 
         DataStream<Tuple2<String, String>> messageSentimentTupleStream = keyedStream
