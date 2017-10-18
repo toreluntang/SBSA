@@ -119,21 +119,20 @@ under the License.
         </dependency>
 
 
-
-
         <!-- https://mvnrepository.com/artifact/edu.stanford.nlp/stanford-corenlp -->
         <dependency>
             <groupId>edu.stanford.nlp</groupId>
             <artifactId>stanford-corenlp</artifactId>
-            <version>3.3.0</version>
+            <version>3.8.0</version>
         </dependency>
-
 
         <dependency>
-            <groupId>org.apache.opennlp</groupId>
-            <artifactId>opennlp-tools</artifactId>
-            <version>1.6.0</version>
+            <groupId>edu.stanford.nlp</groupId>
+            <artifactId>stanford-corenlp</artifactId>
+            <version>3.8.0</version>
+            <classifier>models</classifier>
         </dependency>
+        
 
         <!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
         <dependency>

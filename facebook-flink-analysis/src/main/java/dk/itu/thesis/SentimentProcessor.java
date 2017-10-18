@@ -1,17 +1,18 @@
 package dk.itu.thesis;
 
-import edu.stanford.nlp.ling.CoreAnnotations;
-import edu.stanford.nlp.pipeline.Annotation;
-import edu.stanford.nlp.pipeline.StanfordCoreNLP;
-import edu.stanford.nlp.rnn.RNNCoreAnnotations;
-import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
+import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations;
+import edu.stanford.nlp.pipeline.*;
 import edu.stanford.nlp.trees.Tree;
 import edu.stanford.nlp.util.CoreMap;
+import edu.stanford.nlp.ling.CoreAnnotations;
+import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
 
 import java.util.Properties;
 
+
 public class SentimentProcessor {
 
+    private StanfordCoreNLP tokenizer;
     private StanfordCoreNLP pipeline;
 
     public SentimentProcessor() {
@@ -20,11 +21,20 @@ public class SentimentProcessor {
 
     public static SentimentProcessor create() {
 
-        Properties props = new Properties();
-        props.setProperty("annotators", "tokenize, ssplit, parse, sentiment");
-        StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+        Properties pipelineProps = new Properties();
+        Properties tokenizerProps = new Properties();
+
+        pipelineProps.setProperty("annotators", "parse, sentiment");
+        pipelineProps.setProperty("parse.binaryTrees", "true");
+        pipelineProps.setProperty("enforceRequirements", "false");
+
+        tokenizerProps.setProperty("annotators", "tokenize, ssplit, pos, lemma");
+
+        StanfordCoreNLP tokenizer = new StanfordCoreNLP(tokenizerProps);
+        StanfordCoreNLP pipeline = new StanfordCoreNLP(pipelineProps);
 
         SentimentProcessor sentimentProcessor = new SentimentProcessor();
+        sentimentProcessor.tokenizer = tokenizer;
         sentimentProcessor.pipeline = pipeline;
 
         return sentimentProcessor;
@@ -33,33 +43,24 @@ public class SentimentProcessor {
 
     public String getSentiment(String text) {
 
-        int mainSentiment = 0;
 
-        Long textLength = 0L;
-        int sumOfValues = 0;
+        Annotation annotation = tokenizer.process(text);
+        pipeline.annotate(annotation);
 
-        if (text != null && text.length() > 0) {
+        String totalSentiment = "";
 
-            int longest = 0;
-            Annotation annotation = pipeline.process(text);
+        // normal output
+        for (CoreMap sentence : annotation.get(CoreAnnotations.SentencesAnnotation.class)) {
+            String output = sentence.get(SentimentCoreAnnotations.SentimentClass.class);
 
-            for (CoreMap sentence : annotation.get(CoreAnnotations.SentencesAnnotation.class)) {
+            Tree tree = sentence.get(SentimentCoreAnnotations.SentimentAnnotatedTree.class);
+            int sentiment = RNNCoreAnnotations.getPredictedClass(tree);
 
-                Tree tree = sentence.get(SentimentCoreAnnotations.AnnotatedTree.class);
-                int sentiment = RNNCoreAnnotations.getPredictedClass(tree);
-                String partText = sentence.toString();
+            totalSentiment += sentiment + "; ";
 
-                if (partText.length() > longest) {
-                    textLength += partText.length();
-                    sumOfValues = sumOfValues + sentiment * partText.length();
-
-                    System.out.println(sentiment + " " + partText);
-                }
-            }
+            System.out.println(sentiment + " : " + output);
         }
 
-
-        return ("Overall: " + (double) sumOfValues / textLength);
-
+        return totalSentiment;
     }
 }

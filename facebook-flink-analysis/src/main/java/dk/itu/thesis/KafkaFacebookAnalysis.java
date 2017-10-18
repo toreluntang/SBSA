@@ -1,39 +1,28 @@
 package dk.itu.thesis;
 
 import com.google.gson.*;
-
-import edu.stanford.nlp.ling.CoreAnnotations;
-import edu.stanford.nlp.pipeline.Annotation;
-import edu.stanford.nlp.pipeline.StanfordCoreNLP;
-import edu.stanford.nlp.rnn.RNNCoreAnnotations;
-import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
-import edu.stanford.nlp.trees.Tree;
-import edu.stanford.nlp.util.CoreMap;
-import org.apache.flink.api.common.functions.*;
-import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.io.jdbc.JDBCOutputFormat;
+import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
 import org.apache.flink.streaming.util.serialization.SimpleStringSchema;
-import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
 
-import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
-
 //import org.apache.flink.streaming.connectors.json.JSONParser;
 
 public class KafkaFacebookAnalysis {
 
     public static void main(String[] args) throws Exception {
-
 
         // the host and the port to connect to
         String kafkahostname = null;
@@ -102,7 +91,6 @@ public class KafkaFacebookAnalysis {
                             } else if (jsonElement instanceof JsonArray) {
 
                                 for (JsonElement je : jsonElement.getAsJsonArray()) {
-                                    System.out.println("---" + je);
                                     out.collect(je.getAsJsonObject());
                                 }
                             }
@@ -113,25 +101,72 @@ public class KafkaFacebookAnalysis {
                     }
                 });
 
+
+        SingleOutputStreamOperator<String> jsonToMessageStringStream = jsonObjectStream.map(new MapFunction<JsonObject, String>() {
+            @Override
+            public String map(JsonObject value) throws Exception {
+
+                if (null != value && value.has("message") && !value.get("message").isJsonNull()) {
+                    System.out.println("\n---");
+                    System.out.println("The Message: " + value.get("message").getAsString());
+                    return value.get("message").getAsString();
+
+                }
+                return "";
+            }
+        });
+
+        SingleOutputStreamOperator<String> splitOnNewLineStream = jsonToMessageStringStream.flatMap(new FlatMapFunction<String, String>() {
+            @Override
+            public void flatMap(String value, Collector<String> out) throws Exception {
+                for (String s : value.split("\n")) {
+                    if(s.length() > 2) {
+                        s = removeUrls(s);
+                        s = removeBadSymbols(s);
+                        s = removeStopWords(s);
+
+                        out.collect(s.toLowerCase());
+                    }
+                }
+            }
+
+            private String removeBadSymbols(String body) {
+                return body.replaceAll("[~^=<>&\\_/]", "");
+            }
+
+            private String removeStopWords(String msg) {
+
+                List<String> stopwords = Arrays.asList("a", "about", "above", "above", "across", "after", "afterwards", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "amongst", "amoungst", "amount", "an", "and", "another", "any", "anyhow", "anyone", "anything", "anyway", "anywhere", "are", "around", "as", "at", "back", "be", "became", "because", "become", "becomes", "becoming", "been", "before", "beforehand", "behind", "being", "below", "beside", "besides", "between", "beyond", "bill", "both", "bottom", "but", "by", "call", "can", "cannot", "cant", "co", "con", "could", "couldnt", "cry", "de", "describe", "detail", "do", "done", "down", "due", "during", "each", "eg", "eight", "either", "eleven", "else", "elsewhere", "empty", "enough", "etc", "even", "ever", "every", "everyone", "everything", "everywhere", "except", "few", "fifteen", "fify", "fill", "find", "fire", "first", "five", "for", "former", "formerly", "forty", "found", "four", "from", "front", "full", "further", "get", "give", "go", "had", "has", "hasnt", "have", "he", "hence", "her", "here", "hereafter", "hereby", "herein", "hereupon", "hers", "herself", "him", "himself", "his", "how", "however", "hundred", "ie", "if", "in", "inc", "indeed", "interest", "into", "is", "it", "its", "itself", "keep", "last", "latter", "latterly", "least", "less", "ltd", "made", "many", "may", "me", "meanwhile", "might", "mill", "mine", "more", "moreover", "most", "mostly", "move", "much", "must", "my", "myself", "name", "namely", "neither", "never", "nevertheless", "next", "nine", "no", "nobody", "none", "noone", "nor", "not", "nothing", "now", "nowhere", "of", "off", "often", "on", "once", "one", "only", "onto", "or", "other", "others", "otherwise", "our", "ours", "ourselves", "out", "over", "own", "part", "per", "perhaps", "please", "put", "rather", "re", "same", "see", "seem", "seemed", "seeming", "seems", "serious", "several", "she", "should", "show", "side", "since", "sincere", "six", "sixty", "so", "some", "somehow", "someone", "something", "sometime", "sometimes", "somewhere", "still", "such", "system", "take", "ten", "than", "that", "the", "their", "them", "themselves", "then", "thence", "there", "thereafter", "thereby", "therefore", "therein", "thereupon", "these", "they", "thickv", "thin", "third", "this", "those", "though", "three", "through", "throughout", "thru", "thus", "to", "together", "too", "top", "toward", "towards", "twelve", "twenty", "two", "un", "under", "until", "up", "upon", "us", "very", "via", "was", "we", "well", "were", "what", "whatever", "when", "whence", "whenever", "where", "whereafter", "whereas", "whereby", "wherein", "whereupon", "wherever", "whether", "which", "while", "whither", "who", "whoever", "whole", "whom", "whose", "why", "will", "with", "within", "without", "would", "yet", "you", "your", "yours", "yourself", "yourselves", "the");
+                StringBuilder stringBuilder = new StringBuilder();
+                String[] words = msg.split(" ");
+
+                for (String word : words) {
+
+                    if (!stopwords.contains(word)) {
+
+                        stringBuilder.append(word);
+                        stringBuilder.append(" ");
+                    }
+
+                }
+
+                return stringBuilder.toString();
+            }
+
+            private String removeUrls(String msg) {
+                return msg.replaceAll("(?i)(?:https?|ftp):\\/\\/[\\n\\S]+", "");
+            }
+
+        });
+
+        SingleOutputStreamOperator<Tuple2<String, String>> messageSentimentTupleStream = splitOnNewLineStream.map(new SentimentMapper());
+        messageSentimentTupleStream.print();
+
+        /*
         SingleOutputStreamOperator<Tuple2<String, String>> messageSentimentTupleStream = jsonObjectStream.map(new SentimentMapper());
 
-//        DataStream<Tuple2<String, String>> messageSentimentTupleStream = keyedStream
-//                .timeWindow(Time.seconds(5))
-//
-//                .fold(new Tuple2<>("", ""), new FoldFunction<JsonObject, Tuple2<String, String>>() {
-//                    @Override
-//                    public Tuple2<String, String> fold(Tuple2<String, String> acc, JsonObject event) {
-//                        acc.f0 = event.get("message").getAsString();
-//                        acc.f1 += getSentiment(event.get("message").getAsString());
-//                        return acc;
-//                    }
-//                });
 
-
-//        messageSentimentTupleStream.print();
-//
         String query = "INSERT INTO result (message, sentiment) VALUES (?, ?);";
-
         JDBCOutputFormat jdbcOutput = JDBCOutputFormat.buildJDBCOutputFormat()
                 .setDrivername("org.postgresql.Driver")
                 .setBatchInterval(1)
@@ -141,7 +176,6 @@ public class KafkaFacebookAnalysis {
                 .setQuery(query)
                 .setSqlTypes(new int[]{Types.VARCHAR, Types.VARCHAR}) //set the types
                 .finish();
-
 
         SingleOutputStreamOperator<Row> resultRow = messageSentimentTupleStream
                 .map(new MapFunction<Tuple2<String, String>, Row>() {
@@ -157,14 +191,14 @@ public class KafkaFacebookAnalysis {
 
         resultRow.writeUsingOutputFormat(jdbcOutput);
 
-
+*/
         env.execute();
 
 //        System.out.println("Au revoir");
     }
 
 
-    public static class SentimentMapper extends RichMapFunction<JsonObject, Tuple2<String, String>> {
+    public static class SentimentMapper extends RichMapFunction<String, Tuple2<String, String>> {
 
         private SentimentProcessor processor;
 
@@ -175,9 +209,8 @@ public class KafkaFacebookAnalysis {
         }
 
         @Override
-        public Tuple2<String, String> map(JsonObject value) throws Exception {
-            String msg = value.get("message").getAsString();
-            return new Tuple2<>(msg, processor.getSentiment(msg));
+        public Tuple2<String, String> map(String value) throws Exception {
+            return new Tuple2<>(value, processor.getSentiment(value));
         }
     }
 
