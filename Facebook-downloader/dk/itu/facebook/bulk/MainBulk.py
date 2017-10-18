@@ -37,18 +37,18 @@ if __name__ == "__main__":
 
     p = Producer({'bootstrap.servers': kafka_bootstrap_server})
 
-    graph = facebook.GraphAPI(access_token=fb_app_token, version='2.7')
+    graph = facebook.GraphAPI(access_token=fb_app_token, version='2.10')
 
-    post_and_reactions = graph.get_object(fb_page_id, fields='posts.limit(100){message,description,caption,name,reactions.limit(100),created_time}')
+    post_and_reactions = graph.get_object(fb_page_id, fields='posts.limit(100){message,description,caption,name,reactions.type(LIKE).limit(0).summary(true).as(LIKE),reactions.type(LOVE).limit(0).summary(true).as(LOVE),reactions.type(WOW).limit(0).summary(true).as(WOW),reactions.type(HAHA).limit(0).summary(true).as(HAHA),reactions.type(SAD).limit(0).summary(true).as(SAD),reactions.type(ANGRY).limit(0).summary(true).as(ANGRY), created_time}')
     posts = post_and_reactions['posts']
 
-    print("Processes first batch of 100")
+    print("Processes first batch of 100 to topic {}".format(kafka_topic))
     for d in posts['data']:
         p.produce(kafka_topic, json.dumps(d))
     p.flush()
 
     while 1:
-        print("Sleep for 60")
+        print("Sleep for {} seconds".format(sleep_time))
         time.sleep(sleep_time)
 
         print("Fetches next batch of posts")
