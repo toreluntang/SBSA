@@ -14,13 +14,10 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
 import org.apache.flink.streaming.util.serialization.SimpleStringSchema;
 import org.apache.flink.util.Collector;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 //import org.apache.flink.streaming.connectors.json.JSONParser;
 
-public class KafkaFacebookAnalysis {
+public class SimpleKafkaFacebookAnalysis {
 
     public static void main(String[] args) throws Exception {
 
@@ -82,6 +79,7 @@ public class KafkaFacebookAnalysis {
                     @Override
                     public void flatMap(String value, Collector<JsonObject> out) throws Exception {
                         JsonParser jsonParser = new JsonParser();
+                        System.out.println("Received message: " + value);
                         try {
                             JsonElement jsonElement = jsonParser.parse(value);
 
@@ -95,69 +93,74 @@ public class KafkaFacebookAnalysis {
                                 }
                             }
                         } catch (JsonSyntaxException jse) {
-                            // Do nothing i guess.
-                            // Maybe print "not parsable"
+                            // Do nothing i guess. Maybe print "not parsable"
                         }
                     }
                 });
 
+        SingleOutputStreamOperator<String> jsonToMessageStringStream = jsonObjectStream.map(
+                new MapFunction<JsonObject, String>() {
+                    @Override
+                    public String map(JsonObject value) throws Exception {
+                        String message = "";
+                        String headline = "";
 
-        SingleOutputStreamOperator<String> jsonToMessageStringStream = jsonObjectStream.map(new MapFunction<JsonObject, String>() {
-            @Override
-            public String map(JsonObject value) throws Exception {
+                        if (null != value) {
 
-                if (null != value && value.has("message") && !value.get("message").isJsonNull()) {
-                    System.out.println("\n---");
-                    System.out.println("The Message: " + value.get("message").getAsString());
-                    return value.get("message").getAsString();
+                            if (value.has("message") && !value.get("message").isJsonNull()) {
+                                message = value.get("message").getAsString();
+                            }
 
-                }
-                return "";
-            }
-        });
+                            if (value.has("name") && !value.get("name").isJsonNull()) {
+                                headline = value.get("name").getAsString();
+                            }
+                        }
 
-        SingleOutputStreamOperator<String> splitOnNewLineStream = jsonToMessageStringStream.flatMap(new FlatMapFunction<String, String>() {
-            @Override
-            public void flatMap(String value, Collector<String> out) throws Exception {
-                for (String s : value.split("\n")) {
-                    if(s.length() > 2) {
-                        s = removeUrls(s);
-                        s = removeBadSymbols(s);
-                        s = removeStopWords(s);
-
-                        out.collect(s.toLowerCase());
-                    }
-                }
-            }
-
-            private String removeBadSymbols(String body) {
-                return body.replaceAll("[~^=<>&\\_/]", "");
-            }
-
-            private String removeStopWords(String msg) {
-
-                List<String> stopwords = Arrays.asList("a", "about", "above", "above", "across", "after", "afterwards", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "amongst", "amoungst", "amount", "an", "and", "another", "any", "anyhow", "anyone", "anything", "anyway", "anywhere", "are", "around", "as", "at", "back", "be", "became", "because", "become", "becomes", "becoming", "been", "before", "beforehand", "behind", "being", "below", "beside", "besides", "between", "beyond", "bill", "both", "bottom", "but", "by", "call", "can", "cannot", "cant", "co", "con", "could", "couldnt", "cry", "de", "describe", "detail", "do", "done", "down", "due", "during", "each", "eg", "eight", "either", "eleven", "else", "elsewhere", "empty", "enough", "etc", "even", "ever", "every", "everyone", "everything", "everywhere", "except", "few", "fifteen", "fify", "fill", "find", "fire", "first", "five", "for", "former", "formerly", "forty", "found", "four", "from", "front", "full", "further", "get", "give", "go", "had", "has", "hasnt", "have", "he", "hence", "her", "here", "hereafter", "hereby", "herein", "hereupon", "hers", "herself", "him", "himself", "his", "how", "however", "hundred", "ie", "if", "in", "inc", "indeed", "interest", "into", "is", "it", "its", "itself", "keep", "last", "latter", "latterly", "least", "less", "ltd", "made", "many", "may", "me", "meanwhile", "might", "mill", "mine", "more", "moreover", "most", "mostly", "move", "much", "must", "my", "myself", "name", "namely", "neither", "never", "nevertheless", "next", "nine", "no", "nobody", "none", "noone", "nor", "not", "nothing", "now", "nowhere", "of", "off", "often", "on", "once", "one", "only", "onto", "or", "other", "others", "otherwise", "our", "ours", "ourselves", "out", "over", "own", "part", "per", "perhaps", "please", "put", "rather", "re", "same", "see", "seem", "seemed", "seeming", "seems", "serious", "several", "she", "should", "show", "side", "since", "sincere", "six", "sixty", "so", "some", "somehow", "someone", "something", "sometime", "sometimes", "somewhere", "still", "such", "system", "take", "ten", "than", "that", "the", "their", "them", "themselves", "then", "thence", "there", "thereafter", "thereby", "therefore", "therein", "thereupon", "these", "they", "thickv", "thin", "third", "this", "those", "though", "three", "through", "throughout", "thru", "thus", "to", "together", "too", "top", "toward", "towards", "twelve", "twenty", "two", "un", "under", "until", "up", "upon", "us", "very", "via", "was", "we", "well", "were", "what", "whatever", "when", "whence", "whenever", "where", "whereafter", "whereas", "whereby", "wherein", "whereupon", "wherever", "whether", "which", "while", "whither", "who", "whoever", "whole", "whom", "whose", "why", "will", "with", "within", "without", "would", "yet", "you", "your", "yours", "yourself", "yourselves", "the");
-                StringBuilder stringBuilder = new StringBuilder();
-                String[] words = msg.split(" ");
-
-                for (String word : words) {
-
-                    if (!stopwords.contains(word)) {
-
-                        stringBuilder.append(word);
-                        stringBuilder.append(" ");
+                        return message + ". " + headline;
                     }
 
-                }
+                });
 
-                return stringBuilder.toString();
-            }
+        SingleOutputStreamOperator<String> splitOnNewLineStream = jsonToMessageStringStream.flatMap(
+                new FlatMapFunction<String, String>() {
 
-            private String removeUrls(String msg) {
-                return msg.replaceAll("(?i)(?:https?|ftp):\\/\\/[\\n\\S]+", "");
-            }
+                    @Override
+                    public void flatMap(String value, Collector<String> out) throws Exception {
+                        for (String s : value.split("\n")) {
+                            if (s.length() > 2) {
+                                s = removeUrls(s);
+                                s = removeBadSymbols(s);
+                                s = removeStopWords(s);
 
-        });
+                                out.collect(s.toLowerCase());
+                            }
+                        }
+                    }
+
+                    private String removeBadSymbols(String body) {
+                        return body.replaceAll("[~^=<>&\\_/]", "");
+                    }
+
+                    private String removeStopWords(String msg) {
+
+                        List<String> stopwords = Arrays.asList("a", "about", "above", "above", "across", "after", "afterwards", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "amongst", "amoungst", "amount", "an", "and", "another", "any", "anyhow", "anyone", "anything", "anyway", "anywhere", "are", "around", "as", "at", "back", "be", "became", "because", "become", "becomes", "becoming", "been", "before", "beforehand", "behind", "being", "below", "beside", "besides", "between", "beyond", "bill", "both", "bottom", "but", "by", "call", "can", "cannot", "cant", "co", "con", "could", "couldnt", "cry", "de", "describe", "detail", "do", "done", "down", "due", "during", "each", "eg", "eight", "either", "eleven", "else", "elsewhere", "empty", "enough", "etc", "even", "ever", "every", "everyone", "everything", "everywhere", "except", "few", "fifteen", "fify", "fill", "find", "fire", "first", "five", "for", "former", "formerly", "forty", "found", "four", "from", "front", "full", "further", "get", "give", "go", "had", "has", "hasnt", "have", "he", "hence", "her", "here", "hereafter", "hereby", "herein", "hereupon", "hers", "herself", "him", "himself", "his", "how", "however", "hundred", "ie", "if", "in", "inc", "indeed", "interest", "into", "is", "it", "its", "itself", "keep", "last", "latter", "latterly", "least", "less", "ltd", "made", "many", "may", "me", "meanwhile", "might", "mill", "mine", "more", "moreover", "most", "mostly", "move", "much", "must", "my", "myself", "name", "namely", "neither", "never", "nevertheless", "next", "nine", "no", "nobody", "none", "noone", "nor", "not", "nothing", "now", "nowhere", "of", "off", "often", "on", "once", "one", "only", "onto", "or", "other", "others", "otherwise", "our", "ours", "ourselves", "out", "over", "own", "part", "per", "perhaps", "please", "put", "rather", "re", "same", "see", "seem", "seemed", "seeming", "seems", "serious", "several", "she", "should", "show", "side", "since", "sincere", "six", "sixty", "so", "some", "somehow", "someone", "something", "sometime", "sometimes", "somewhere", "still", "such", "system", "take", "ten", "than", "that", "the", "their", "them", "themselves", "then", "thence", "there", "thereafter", "thereby", "therefore", "therein", "thereupon", "these", "they", "thickv", "thin", "third", "this", "those", "though", "three", "through", "throughout", "thru", "thus", "to", "together", "too", "top", "toward", "towards", "twelve", "twenty", "two", "un", "under", "until", "up", "upon", "us", "very", "via", "was", "we", "well", "were", "what", "whatever", "when", "whence", "whenever", "where", "whereafter", "whereas", "whereby", "wherein", "whereupon", "wherever", "whether", "which", "while", "whither", "who", "whoever", "whole", "whom", "whose", "why", "will", "with", "within", "without", "would", "yet", "you", "your", "yours", "yourself", "yourselves", "the");
+                        StringBuilder stringBuilder = new StringBuilder();
+                        String[] words = msg.split(" ");
+
+                        for (String word : words) {
+
+                            if (!stopwords.contains(word)) {
+                                stringBuilder.append(word);
+                                stringBuilder.append(" ");
+                            }
+                        }
+                        return stringBuilder.toString();
+                    }
+
+                    private String removeUrls(String msg) {
+                        return msg.replaceAll("(?i)(?:https?|ftp):\\/\\/[\\n\\S]+", "");
+                    }
+                });
 
         SingleOutputStreamOperator<Tuple2<String, String>> messageSentimentTupleStream = splitOnNewLineStream.map(new SentimentMapper());
         messageSentimentTupleStream.print();
@@ -194,7 +197,7 @@ public class KafkaFacebookAnalysis {
 */
         env.execute();
 
-//        System.out.println("Au revoir");
+
     }
 
 
@@ -210,29 +213,10 @@ public class KafkaFacebookAnalysis {
 
         @Override
         public Tuple2<String, String> map(String value) throws Exception {
-            return new Tuple2<>(value, processor.getSentiment(value));
+            return new Tuple2<>(value, processor.getSentiment(value).f1);
         }
     }
 
-/*
 
-
-        DataStream<Tuple2<String, String>> messageSentimentTupleStream = keyedStream
-                .timeWindow(Time.seconds(5))
-
-                .fold(
-                    new Tuple2<>("", ""),
-                    new FoldFunction<JsonObject, Tuple2<String, String>>() {
-                    @Override
-                    public Tuple2<String, String> fold(Tuple2<String, String> acc, JsonObject event) {
-                        acc.f0 = event.get("message").getAsString();
-                        acc.f1 += getSentiment(event.get("message").getAsString());
-                        return acc;
-                    }
-                });
-
-
-
- */
 }
 
