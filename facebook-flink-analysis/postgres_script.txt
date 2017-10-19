@@ -1,0 +1,12 @@
+create table sentiment(
+    id varchar(64),
+    newspage varchar(64),
+    content varchar(512),
+    sentiment_score numeric,
+    sentiment_text varchar(32),
+    reaction_love numeric,
+    reaction_wow numeric,
+    reaction_haha numeric,
+    reaction_sad numeric,
+    reaction_angry numeric
+);

@@ -6,6 +6,7 @@ import edu.stanford.nlp.trees.Tree;
 import edu.stanford.nlp.util.CoreMap;
 import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.Properties;
 
@@ -41,26 +42,29 @@ public class SentimentProcessor {
     }
 
 
-    public String getSentiment(String text) {
+    public Tuple2<Double, String> getSentiment(String text) {
 
 
         Annotation annotation = tokenizer.process(text);
         pipeline.annotate(annotation);
 
-        String totalSentiment = "";
-
+        String totalSentimentString = "";
+        double totalSentiment = 0.0;
+        int numberOfSentences = 0;
         // normal output
         for (CoreMap sentence : annotation.get(CoreAnnotations.SentencesAnnotation.class)) {
-            String output = sentence.get(SentimentCoreAnnotations.SentimentClass.class);
 
+            String output = sentence.get(SentimentCoreAnnotations.SentimentClass.class);
             Tree tree = sentence.get(SentimentCoreAnnotations.SentimentAnnotatedTree.class);
             int sentiment = RNNCoreAnnotations.getPredictedClass(tree);
 
-            totalSentiment += sentiment + "; ";
-
-            System.out.println(sentiment + " : " + output);
+            totalSentimentString += sentiment + " : " + output + "; ";
+            totalSentiment += sentiment;
+            numberOfSentences++;
         }
 
-        return totalSentiment;
+        totalSentiment = totalSentiment / numberOfSentences;
+
+        return Tuple2.of(totalSentiment, totalSentimentString);
     }
 }
