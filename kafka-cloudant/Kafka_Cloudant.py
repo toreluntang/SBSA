@@ -62,7 +62,7 @@ def kafka_to_cloudant(kafka_client, cloudant_client, batch_size = 100):
 
         if not msg.error():
             result = cloudant_client[1].bulk_docs(msg_batch)
-            print("Cloudant bulk result = {}".format(result))
+            #ignores result?
         elif msg.error().code() != KafkaError._PARTITION_EOF:
             print(msg.error())
             running = False
