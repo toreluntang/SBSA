@@ -1,6 +1,7 @@
 package dk.itu.thesis;
 
 import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations;
+import edu.stanford.nlp.parser.shiftreduce.ShiftReduceParser;
 import edu.stanford.nlp.pipeline.*;
 import edu.stanford.nlp.trees.Tree;
 import edu.stanford.nlp.util.CoreMap;
@@ -44,7 +45,6 @@ public class SentimentProcessor {
 
     public Tuple2<Double, String> getSentiment(String text) {
 
-
         Annotation annotation = tokenizer.process(text);
         pipeline.annotate(annotation);
 
@@ -56,6 +56,7 @@ public class SentimentProcessor {
 
             String output = sentence.get(SentimentCoreAnnotations.SentimentClass.class);
             Tree tree = sentence.get(SentimentCoreAnnotations.SentimentAnnotatedTree.class);
+
             int sentiment = RNNCoreAnnotations.getPredictedClass(tree);
 
             totalSentimentString += sentiment + " : " + output + "; ";
@@ -64,7 +65,6 @@ public class SentimentProcessor {
         }
 
         totalSentiment = totalSentiment / numberOfSentences;
-
         return Tuple2.of(totalSentiment, totalSentimentString);
     }
 }
