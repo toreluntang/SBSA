@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     graph = facebook.GraphAPI(access_token=fb_app_token, version='2.10')
 
-    post_and_reactions = graph.get_object(fb_page_id, fields='posts.limit(100){message,description,caption,name,reactions.type(LIKE).limit(0).summary(true).as(LIKE),reactions.type(LOVE).limit(0).summary(true).as(LOVE),reactions.type(WOW).limit(0).summary(true).as(WOW),reactions.type(HAHA).limit(0).summary(true).as(HAHA),reactions.type(SAD).limit(0).summary(true).as(SAD),reactions.type(ANGRY).limit(0).summary(true).as(ANGRY), created_time}')
+    post_and_reactions = graph.get_object(fb_page_id, fields='username,posts.limit(100){message,description,caption,name,reactions.type(LIKE).limit(0).summary(true).as(LIKE),reactions.type(LOVE).limit(0).summary(true).as(LOVE),reactions.type(WOW).limit(0).summary(true).as(WOW),reactions.type(HAHA).limit(0).summary(true).as(HAHA),reactions.type(SAD).limit(0).summary(true).as(SAD),reactions.type(ANGRY).limit(0).summary(true).as(ANGRY), created_time}')
     posts = post_and_reactions['posts']
 
     print("Processes first batch of 100 to topic {}".format(kafka_topic))

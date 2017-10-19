@@ -31,13 +31,13 @@ if __name__ == "__main__":
 
     p = Producer({'bootstrap.servers': kafka_bootstrap_server})
 
-    graph = facebook.GraphAPI(access_token=fb_app_token, version='2.7')
+    graph = facebook.GraphAPI(access_token=fb_app_token, version='2.10')
 
     previous_id = 0
 
     while 1:
         print("Fetching newest post")
-        post_and_reactions = graph.get_object(fb_page_id, fields='posts.limit(1){message,description,caption,name,reactions.type(LIKE).limit(0).summary(true).as(LIKE),reactions.type(LOVE).limit(0).summary(true).as(LOVE),reactions.type(WOW).limit(0).summary(true).as(WOW),reactions.type(HAHA).limit(0).summary(true).as(HAHA),reactions.type(SAD).limit(0).summary(true).as(SAD),reactions.type(ANGRY).limit(0).summary(true).as(ANGRY), created_time}')
+        post_and_reactions = graph.get_object(fb_page_id, fields='username,posts.limit(1){message,description,caption,name,reactions.type(LIKE).limit(0).summary(true).as(LIKE),reactions.type(LOVE).limit(0).summary(true).as(LOVE),reactions.type(WOW).limit(0).summary(true).as(WOW),reactions.type(HAHA).limit(0).summary(true).as(HAHA),reactions.type(SAD).limit(0).summary(true).as(SAD),reactions.type(ANGRY).limit(0).summary(true).as(ANGRY), created_time}')
 
         current_id = post_and_reactions['posts']['data'][0]['id']
         print("Newest post has id {} and previous post has id {}".format(current_id, previous_id))
