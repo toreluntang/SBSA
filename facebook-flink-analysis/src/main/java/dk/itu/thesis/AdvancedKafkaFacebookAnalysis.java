@@ -34,11 +34,11 @@ public class AdvancedKafkaFacebookAnalysis {
 
         try {
             final ParameterTool params = ParameterTool.fromArgs(args);
-            kafkahostname              = params.getRequired("kafkahost");
-            groupid                    = params.getRequired("groupid");
-            topic                      = params.getRequired("topic");
-            user                       = params.getRequired("sqluser");
-            password                   = params.getRequired("sqlpass");
+            kafkahostname = params.getRequired("kafkahost");
+            groupid = params.getRequired("groupid");
+            topic = params.getRequired("topic");
+            user = params.getRequired("sqluser");
+            password = params.getRequired("sqlpass");
 
         } catch (Exception e) {
             if (null == kafkahostname)
@@ -127,10 +127,9 @@ public class AdvancedKafkaFacebookAnalysis {
                                 FacebookPost.id = value.get("id").getAsString();
                             }
 
-                            if (value.has("caption") && !value.get("caption").isJsonNull()) {
-                                FacebookPost.caption = value.get("caption").getAsString();
+                            if (value.has("username") && !value.get("username").isJsonNull()) {
+                                FacebookPost.username = value.get("username").getAsString();
                             }
-
                         }
                         return FacebookPost;
                     }
@@ -232,8 +231,8 @@ public class AdvancedKafkaFacebookAnalysis {
                     public Row map(SentimentResult sentimentResult) throws Exception {
                         Row row = new Row(10);
 
-                        row.setField(0,sentimentResult.facebookPost.id );
-                        row.setField(1, sentimentResult.facebookPost.caption);
+                        row.setField(0, sentimentResult.facebookPost.id);
+                        row.setField(1, sentimentResult.facebookPost.username);
                         row.setField(2, sentimentResult.facebookPost.concatenatedNews);
                         row.setField(3, sentimentResult.sentiment);
                         row.setField(4, sentimentResult.sentimentString);
@@ -259,12 +258,12 @@ public class AdvancedKafkaFacebookAnalysis {
 
     public static class SentimentMapper extends RichMapFunction<FacebookPost, SentimentResult> {
 
-        private SentimentProcessor processor;
+        private StanfordSentimentProcessor processor;
 
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
-            processor = SentimentProcessor.create();
+            processor = StanfordSentimentProcessor.create();
         }
 
         @Override
@@ -295,7 +294,7 @@ public class AdvancedKafkaFacebookAnalysis {
 
     public static class FacebookPost {
         public String id;
-        public String caption;
+        public String username;
         public String message;
         public String headline;
         public String concatenatedNews;

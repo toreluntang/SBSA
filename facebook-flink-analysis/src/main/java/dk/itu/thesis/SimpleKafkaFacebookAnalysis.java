@@ -203,12 +203,12 @@ public class SimpleKafkaFacebookAnalysis {
 
     public static class SentimentMapper extends RichMapFunction<String, Tuple2<String, String>> {
 
-        private SentimentProcessor processor;
+        private StanfordSentimentProcessor processor;
 
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
-            processor = SentimentProcessor.create();
+            processor = StanfordSentimentProcessor.create();
         }
 
         @Override
