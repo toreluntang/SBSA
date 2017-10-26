@@ -32,6 +32,7 @@ ssl._create_default_https_context = ssl._create_unverified_context
 OPTIMIZER = optimizers.adam()
 MAX_SEQUENCE_LENGTH = 150
 NUM_WORDS = 10000
+EMBEDDING_OUTPUT = 64
 LSTM_SIZE = 50
 EPOCHS = 2
 
@@ -191,7 +192,7 @@ def filter_to_balance_data(X, Y):
         return X, Y #Already perfectly balanced.
 
 
-def gen_keras_model(X, hidden_dims, activation_func="relu"):
+def gen_keras_model(X, hidden_dims, activation_func="relu", embedding_layer=None):
     # _model.add(MaxPooling1D(pool_size=5, strides=None, padding='valid'))
 
     # Convolution
@@ -199,9 +200,11 @@ def gen_keras_model(X, hidden_dims, activation_func="relu"):
     filters = 64
     pool_size = 4
 
-
     _model = Sequential()
-    _model.add(Embedding(NUM_WORDS, 64, input_length=MAX_SEQUENCE_LENGTH))
+    if embedding_layer is None:
+        _model.add(Embedding(NUM_WORDS, EMBEDDING_OUTPUT, input_length=MAX_SEQUENCE_LENGTH))
+    else:
+        _model.add(embedding_layer)
     _model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
     _model.add(MaxPooling1D(pool_size=3))
     _model.add(LSTM(LSTM_SIZE))
@@ -251,40 +254,12 @@ def preprocessing_tokenize(X, num_words=160):
     # print("There where found {} unique tokens. ".format(len(_tokenizer.word_index)))
     # _X = _tokenizer.texts_to_matrix(X)
 
-
-    #Think this is num_words
     _X = []
     for x in X:
-        _X.append(one_hot(x,NUM_WORDS,split=' '))
+        _X.append(one_hot(x, NUM_WORDS, split=' '))
 
     _X = pad_sequences(_X, maxlen=MAX_SEQUENCE_LENGTH)
 
-    # embeddings_index = {}
-    # _dir = "/Users/alexanderengelhardt/Downloads/glove.6B/"
-    # f = open(os.path.join(_dir, 'glove.6B.50d.txt'), 'rb')
-    # for line in f:
-    #     values = line.split()
-    #     word = values[0]
-    #     coefs = np.asarray(values[1:], dtype='float32')
-    #     embeddings_index[word] = coefs
-    # f.close()
-
-    # dunno what this is
-    # EMBEDDING_DIM = 50
-    #
-    # embedding_matrix = np.zeros((len(_tokenizer.word_index) + 1, EMBEDDING_DIM))
-    # for word, i in _tokenizer.word_index.items():
-    #     embedding_vector = embeddings_index.get(word)
-    #     if embedding_vector is not None:
-    #         # words not found in embedding index will be all-zeros.
-    #         embedding_matrix[i] = embedding_vector
-    #
-    # embedding_layer = Embedding(len(_tokenizer.word_index) + 1,
-    #                             EMBEDDING_DIM,
-    #                             weights=[embedding_matrix],
-    #                             input_length=MAX_SEQUENCE_LENGTH,
-    #                             trainable=False)
-    
     return _X
 
 
@@ -324,7 +299,6 @@ def train_and_save(cloudant_acc, cloudant_dbs, cloudant_password, filename, hidd
     
     _X = preprocessing_tokenize(_X)
     _Y = preprocessing_categorize(_Y)
-
     
     _model = gen_keras_model(_X, hidden_dims)
     _loss, _score = fit_eval_keras_model(0.95, _model, _X, _Y, epochs=EPOCHS)
@@ -333,58 +307,81 @@ def train_and_save(cloudant_acc, cloudant_dbs, cloudant_password, filename, hidd
     _model.save(_fname)
     return _fname, _loss, _score, _model
 
-if __name__ == '__main__':
 
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--cloudant_acc', dest='cloudant_account', help='Cloudant account')
-    # parser.add_argument('--cloudant_dbs',  dest='cloudant_databases', help='Cloudant databases', type=own_list)
-    # parser.add_argument('--cloudant_pass', dest='cloudant_password', help='Cloudant password')
-    #
-    # args = parser.parse_args()
-    #
-    # _fname, _loss, _score, _model = train_and_save(args.cloudant_account, args.cloudant_databases, args.cloudant_password, 'model_')
-    # print("Loss: {}, Score: {}".format(_loss, _score))
-
-    test_text = ["The quick brown fox jumped over the! slow turtle. Mr brown jumps and became the slowest of the turtles."]
-
-    _tok = Tokenizer(num_words=30,
-                          filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
-                          lower=True,
-                          split=" ",
-                          char_level=False)
-    _tok.fit_on_texts(test_text)
-
-    print(_tok.word_index)
-    print(len(_tok.word_index))
-
-    mans = one_hot(test_text[0], 30, split=' ')
-
-
-    map = {}
-
-    for i, word in enumerate(test_text[0].split()):
-        val = map.get(mans[i])
-        if val is None:
-            map[mans[i]] = [word]
-        else:
-            val.append(word)
-            map[mans[i]] = val
-
-    print(map)
-    print(mans)
-
+#TODO does not twork
+def gen_embedding_layer(X, embedding_dimension = 50):
     embeddings_index = {}
     glove_data = '/Users/alexanderengelhardt/Downloads/glove.6B/glove.6B.50d.txt'
-    f = open(glove_data)
+    f = open(glove_data, 'rb')
     for line in f:
         values = line.split()
         word = values[0]
         value = np.asarray(values[1:], dtype='float32')
-        embeddings_index[word] = value
+        embeddings_index[word.decode('utf-8')] = value
     f.close()
 
     print('Loaded %s word vectors.' % len(embeddings_index))
 
-    # embedding_dimension = 10
-    # word_index = tokenizer.word_index
+    tokenizer = Tokenizer(NUM_WORDS, split=" ")
+    tokenizer.fit_on_texts(X)
 
+    word_index = tokenizer.word_index
+
+    embedding_matrix = np.zeros((len(word_index) + 1, embedding_dimension))
+    for word, i in word_index.items():
+        embedding_vector = embeddings_index.get(word)
+        if embedding_vector is not None:
+            # words not found in embedding index will be all-zeros.
+            embedding_matrix[i] = embedding_vector[:embedding_dimension]
+
+    embedding_layer = Embedding(embedding_matrix.shape[0],
+                                embedding_matrix.shape[1],
+                                weights=[embedding_matrix],
+                                input_length=MAX_SEQUENCE_LENGTH)
+    return embedding_layer
+
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--cloudant_acc', dest='cloudant_account', help='Cloudant account')
+    parser.add_argument('--cloudant_dbs',  dest='cloudant_databases', help='Cloudant databases', type=own_list)
+    parser.add_argument('--cloudant_pass', dest='cloudant_password', help='Cloudant password')
+
+    args = parser.parse_args()
+
+    _fname, _loss, _score, _model = train_and_save(args.cloudant_account, args.cloudant_databases, args.cloudant_password, 'model_')
+    print("Loss: {}, Score: {}".format(_loss, _score))
+
+    # test_text = ["The quick brown fox jumped over the! slow turtle. Mr brown jumps and became the slowest of the turtles."]
+    #
+    # _tok = Tokenizer(num_words=30,
+    #                       filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
+    #                       lower=True,
+    #                       split=" ",
+    #                       char_level=False)
+    # _tok.fit_on_texts(test_text)
+    #
+    # print(_tok.word_index)
+    # print(len(_tok.word_index))
+    #
+    # mans = one_hot(test_text[0], 30, split=' ')
+    #
+    #
+    # map = {}
+    #
+    # for i, word in enumerate(test_text[0].split()):
+    #     val = map.get(mans[i])
+    #     if val is None:
+    #         map[mans[i]] = [word]
+    #     else:
+    #         val.append(word)
+    #         map[mans[i]] = val
+    #
+    # print(map)
+    # print(mans)
+    #
+    #
+    # layer = gen_embedding_layer()
+    # print(layer)
