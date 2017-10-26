@@ -1,9 +1,11 @@
 package dk.itu.thesis;
 
 import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.io.jdbc.JDBCOutputFormat;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -15,7 +17,10 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
 import org.apache.flink.streaming.util.serialization.SimpleStringSchema;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
+import org.deeplearning4j.nn.modelimport.keras.KerasModelImport;
+import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 
+import java.lang.reflect.Type;
 import java.sql.Types;
 import java.util.*;
 //import org.apache.flink.streaming.connectors.json.JSONParser;
@@ -32,13 +37,20 @@ public class AdvancedKafkaFacebookAnalysis {
         String user = null;
         String password = null;
 
+
+        String json_model_path = "/home/tore/Development/Thesis/SBSA/cloudant-keras/keras_1.2.2_model/model.json";
+        String model_path = "/home/tore/Development/Thesis/SBSA/cloudant-keras/keras_1.2.2_model/model.h5";
+
+        MultiLayerNetwork multiLayerNetwork = KerasModelImport.importKerasSequentialModelAndWeights(json_model_path, model_path);
+
+
         try {
             final ParameterTool params = ParameterTool.fromArgs(args);
-            kafkahostname              = params.getRequired("kafkahost");
-            groupid                    = params.getRequired("groupid");
-            topic                      = params.getRequired("topic");
-            user                       = params.getRequired("sqluser");
-            password                   = params.getRequired("sqlpass");
+            kafkahostname = params.getRequired("kafkahost");
+            groupid = params.getRequired("groupid");
+            topic = params.getRequired("topic");
+            user = params.getRequired("sqluser");
+            password = params.getRequired("sqlpass");
 
         } catch (Exception e) {
             if (null == kafkahostname)
@@ -113,6 +125,7 @@ public class AdvancedKafkaFacebookAnalysis {
                         FacebookPost.reactions.put("SAD", getReactionCount("SAD", value));
                         FacebookPost.reactions.put("ANGRY", getReactionCount("ANGRY", value));
 
+
                         if (null != value) {
 
                             if (value.has("message") && !value.get("message").isJsonNull()) {
@@ -127,10 +140,19 @@ public class AdvancedKafkaFacebookAnalysis {
                                 FacebookPost.id = value.get("id").getAsString();
                             }
 
-                            if (value.has("caption") && !value.get("caption").isJsonNull()) {
-                                FacebookPost.caption = value.get("caption").getAsString();
+                            if (value.has("username") && !value.get("username").isJsonNull()) {
+                                FacebookPost.username = value.get("username").getAsString();
                             }
+                            if (value.has("tokenized_data") && !value.get("tokenized_data").isJsonNull()) {
+                                JsonArray tokenizedData = value.get("tokenized_data").getAsJsonArray();
 
+                                Type listType = new TypeToken<List<Double>>() {
+                                }.getType();
+                                List<Double> doubleList = new Gson().fromJson(tokenizedData, listType);
+
+                                double[] tokenizedDataArray = doubleList.stream().mapToDouble(Double::doubleValue).toArray();
+                                FacebookPost.tokenizedDataArray = tokenizedDataArray;
+                            }
                         }
                         return FacebookPost;
                     }
@@ -197,9 +219,11 @@ public class AdvancedKafkaFacebookAnalysis {
                     }
                 });
 
-        SingleOutputStreamOperator<SentimentResult> messageSentimentTupleStream = splitOnNewLineStream.map(new SentimentMapper());
+//        SingleOutputStreamOperator<SentimentResult> messageSentimentTupleStream = splitOnNewLineStream.map(new SentimentMapper());
+        SingleOutputStreamOperator<SentimentResult> messageSentimentTupleStream = splitOnNewLineStream.map(new KerasMapper());
+        messageSentimentTupleStream.print();
 
-//        /*
+        /*
 
         String query = "" +
                 "INSERT INTO sentiment (" +
@@ -232,8 +256,8 @@ public class AdvancedKafkaFacebookAnalysis {
                     public Row map(SentimentResult sentimentResult) throws Exception {
                         Row row = new Row(10);
 
-                        row.setField(0,sentimentResult.facebookPost.id );
-                        row.setField(1, sentimentResult.facebookPost.caption);
+                        row.setField(0, sentimentResult.facebookPost.id);
+                        row.setField(1, sentimentResult.facebookPost.username);
                         row.setField(2, sentimentResult.facebookPost.concatenatedNews);
                         row.setField(3, sentimentResult.sentiment);
                         row.setField(4, sentimentResult.sentimentString);
@@ -250,30 +274,56 @@ public class AdvancedKafkaFacebookAnalysis {
 
         resultRow.writeUsingOutputFormat(jdbcOutput);
 
-//*/
+*/
         env.execute();
 
 //        System.out.println("Au revoir");
     }
 
+    public static class KerasMapper extends RichMapFunction<FacebookPost, SentimentResult> {
 
-    public static class SentimentMapper extends RichMapFunction<FacebookPost, SentimentResult> {
-
-        private SentimentProcessor processor;
+        private KerasSentimentProcessor processor;
 
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
-            processor = SentimentProcessor.create();
+            processor = KerasSentimentProcessor.create();
         }
 
         @Override
         public SentimentResult map(FacebookPost value) throws Exception {
+            int sentiment = processor.getSentiment(value.tokenizedDataArray);
+
             SentimentResult sentimentResult = new SentimentResult();
             sentimentResult.facebookPost = value;
+            sentimentResult.sentimentString = String.valueOf(sentiment);
+            sentimentResult.sentiment = sentiment;
+
+            return sentimentResult;
+
+        }
+    }
+
+
+    public static class SentimentMapper extends RichMapFunction<FacebookPost, SentimentResult> {
+
+        private StanfordSentimentProcessor processor;
+
+        @Override
+        public void open(Configuration parameters) throws Exception {
+            super.open(parameters);
+            processor = StanfordSentimentProcessor.create();
+        }
+
+        @Override
+        public SentimentResult map(FacebookPost value) throws Exception {
             Tuple2<Double, String> result = processor.getSentiment(value.concatenatedNews);
+
+            SentimentResult sentimentResult = new SentimentResult();
+            sentimentResult.facebookPost = value;
             sentimentResult.sentimentString = result.f1;
             sentimentResult.sentiment = result.f0;
+
             return sentimentResult;
         }
     }
@@ -295,11 +345,12 @@ public class AdvancedKafkaFacebookAnalysis {
 
     public static class FacebookPost {
         public String id;
-        public String caption;
+        public String username;
         public String message;
         public String headline;
         public String concatenatedNews;
         public Map<String, Integer> reactions;
+        public double[] tokenizedDataArray;
 
         public FacebookPost() {
             reactions = new HashMap<>();

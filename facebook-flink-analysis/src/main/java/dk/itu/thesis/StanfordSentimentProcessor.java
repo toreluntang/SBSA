@@ -1,7 +1,6 @@
 package dk.itu.thesis;
 
 import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations;
-import edu.stanford.nlp.parser.shiftreduce.ShiftReduceParser;
 import edu.stanford.nlp.pipeline.*;
 import edu.stanford.nlp.trees.Tree;
 import edu.stanford.nlp.util.CoreMap;
@@ -12,16 +11,16 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import java.util.Properties;
 
 
-public class SentimentProcessor {
+public class StanfordSentimentProcessor {
 
     private StanfordCoreNLP tokenizer;
     private StanfordCoreNLP pipeline;
 
-    public SentimentProcessor() {
+    public StanfordSentimentProcessor() {
     }
 
 
-    public static SentimentProcessor create() {
+    public static StanfordSentimentProcessor create() {
 
         Properties pipelineProps = new Properties();
         Properties tokenizerProps = new Properties();
@@ -35,7 +34,7 @@ public class SentimentProcessor {
         StanfordCoreNLP tokenizer = new StanfordCoreNLP(tokenizerProps);
         StanfordCoreNLP pipeline = new StanfordCoreNLP(pipelineProps);
 
-        SentimentProcessor sentimentProcessor = new SentimentProcessor();
+        StanfordSentimentProcessor sentimentProcessor = new StanfordSentimentProcessor();
         sentimentProcessor.tokenizer = tokenizer;
         sentimentProcessor.pipeline = pipeline;
 
