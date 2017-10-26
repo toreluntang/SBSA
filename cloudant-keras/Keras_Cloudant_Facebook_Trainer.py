@@ -2,14 +2,62 @@ import argparse
 import pprint
 from cloudant.client import Cloudant
 import numpy as np
+import os
 
 #Keras imports
 from keras.utils import np_utils
 from keras.models import Sequential
-from keras.layers import Dense, Activation, Dropout, Convolution2D, Convolution1D, Embedding, GlobalMaxPooling1D, Conv1D, LSTM, Flatten
+from keras.layers import Dense, Activation, Dropout, Convolution1D, GlobalMaxPooling1D, MaxPooling1D, Conv1D, LSTM, Flatten
 from keras import losses
 from keras import optimizers
-from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.text import Tokenizer, one_hot
+from keras.layers.embeddings import Embedding
+from keras.preprocessing import sequence
+from keras.preprocessing.sequence import pad_sequences
+from keras.datasets import imdb
+
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
+
+# 71 percent
+# OPTIMIZER = optimizers.adam()
+# MAX_SEQUENCE_LENGTH = 150
+# NUM_WORDS = 5000
+# LSTM_SIZE = 50
+# EPOCHS = 3
+
+
+# 72 percent
+OPTIMIZER = optimizers.adam()
+MAX_SEQUENCE_LENGTH = 150
+NUM_WORDS = 10000
+LSTM_SIZE = 50
+EPOCHS = 2
+
+# 71 percent
+# OPTIMIZER = optimizers.adam()
+# MAX_SEQUENCE_LENGTH = 300
+# NUM_WORDS = 10000
+# LSTM_SIZE = 50
+# EPOCHS = 2
+
+# 70 percent
+# OPTIMIZER = optimizers.adam()
+# MAX_SEQUENCE_LENGTH = 150
+# NUM_WORDS = 10000
+# LSTM_SIZE = 50
+# EPOCHS = 4
+
+
+#Gives around 69
+# OPTIMIZER = optimizers.adadelta()
+# MAX_SEQUENCE_LENGTH = 150
+# NUM_WORDS = 7000
+# LSTM_SIZE = 70
+# EPOCHS = 2
+
+
 
 
 def init_cloudant_client(account, database_names, password):
@@ -144,26 +192,45 @@ def filter_to_balance_data(X, Y):
 
 
 def gen_keras_model(X, hidden_dims, activation_func="relu"):
+    # _model.add(MaxPooling1D(pool_size=5, strides=None, padding='valid'))
+
+    # Convolution
+    kernel_size = 5
+    filters = 64
+    pool_size = 4
+
+
     _model = Sequential()
-    _model.add(Dense(units=hidden_dims, input_shape=(X.shape[1:]), activation=activation_func))
-    _model.add(Dropout(.2))
-    _model.add(Dense(units=hidden_dims, activation=activation_func))
-    _model.add(Dropout(.2))
-    _model.add(Dense(units=hidden_dims, activation=activation_func))
-    _model.add(Dropout(.2))
-    _model.add(Dense(units=hidden_dims, activation=activation_func))
-    # model.add(Dropout(.2))
-    # model.add(Dense(units=hidden_dims, activation='relu'))
+    _model.add(Embedding(NUM_WORDS, 64, input_length=MAX_SEQUENCE_LENGTH))
+    _model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
+    _model.add(MaxPooling1D(pool_size=3))
+    _model.add(LSTM(LSTM_SIZE))
+    _model.add(Dropout(0.2))
+    _model.add(Dense(32, activation='relu'))
+    _model.add(Dense(2, activation='sigmoid'))
+    _model.compile(loss='binary_crossentropy', optimizer=OPTIMIZER, metrics=['accuracy'])
+    print(_model.summary())
 
-    # output to one unit
-    _model.add(Dense(units=2, activation='softmax'))
 
-    _model.compile(loss=losses.categorical_crossentropy, optimizer=optimizers.adadelta(), metrics=['accuracy'])
+    # _model.add(Conv1D(64, 3, padding='same', activation=activation_func))
+    # _model.add(MaxPooling1D(pool_size=4))
+    # _model.add(LSTM(70))
+    # # _model.add(Conv1D(32, 3, padding='same', activation=activation_func))
+    # # _model.add(MaxPooling1D(pool_size=4))
+    # # _model.add(LSTM(70))
+    # # _model.add(Conv1D(16, 3, padding='same', activation=activation_func))
+    # # _model.add(Flatten())
+    # _model.add(Dropout(0.2))
+    # _model.add(Dense(10,activation=activation_func))
+    # _model.add(Dropout(0.2))
+    # _model.add(Dense(2,activation='softmax'))
+    # _model.compile(loss='binary_crossentropy', optimizer=optimizers.adadelta(), metrics=['accuracy'])
 
     return _model
 
 
-def fit_eval_keras_model(divider, model, X, Y, batch_size=32, epochs=20):
+def fit_eval_keras_model(divider, model, X, Y, batch_size=64, epochs=2):
+    #_X = sequence.pad_sequences(X, maxlen=2000) #fix
     train_validate_percent = (int)(len(X) * divider)
     print("Train validate percent = {}".format(train_validate_percent))
 
@@ -173,16 +240,51 @@ def fit_eval_keras_model(divider, model, X, Y, batch_size=32, epochs=20):
     return _loss, _score
 
 
+def preprocessing_tokenize(X, num_words=160):
+    # _tokenizer = Tokenizer(num_words=NUM_WORDS,
+    #                       filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
+    #                       lower=True,
+    #                       split=" ",
+    #                       char_level=False)
+    #
+    # _tokenizer.fit_on_texts(X)
+    # print("There where found {} unique tokens. ".format(len(_tokenizer.word_index)))
+    # _X = _tokenizer.texts_to_matrix(X)
 
-def preprocessing_tokenize(X, num_words=1000):
-    _tokenizer = Tokenizer(num_words=num_words,
-                          filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
-                          lower=True,
-                          split=" ",
-                          char_level=False)
 
-    _tokenizer.fit_on_texts(X)
-    _X = _tokenizer.texts_to_matrix(X)
+    #Think this is num_words
+    _X = []
+    for x in X:
+        _X.append(one_hot(x,NUM_WORDS,split=' '))
+
+    _X = pad_sequences(_X, maxlen=MAX_SEQUENCE_LENGTH)
+
+    # embeddings_index = {}
+    # _dir = "/Users/alexanderengelhardt/Downloads/glove.6B/"
+    # f = open(os.path.join(_dir, 'glove.6B.50d.txt'), 'rb')
+    # for line in f:
+    #     values = line.split()
+    #     word = values[0]
+    #     coefs = np.asarray(values[1:], dtype='float32')
+    #     embeddings_index[word] = coefs
+    # f.close()
+
+    # dunno what this is
+    # EMBEDDING_DIM = 50
+    #
+    # embedding_matrix = np.zeros((len(_tokenizer.word_index) + 1, EMBEDDING_DIM))
+    # for word, i in _tokenizer.word_index.items():
+    #     embedding_vector = embeddings_index.get(word)
+    #     if embedding_vector is not None:
+    #         # words not found in embedding index will be all-zeros.
+    #         embedding_matrix[i] = embedding_vector
+    #
+    # embedding_layer = Embedding(len(_tokenizer.word_index) + 1,
+    #                             EMBEDDING_DIM,
+    #                             weights=[embedding_matrix],
+    #                             input_length=MAX_SEQUENCE_LENGTH,
+    #                             trainable=False)
+    
     return _X
 
 
@@ -209,35 +311,90 @@ def own_list(val):
         raise argparse.ArgumentParser("Value {} has to be in for \"cnn,msnbc,breitbart, foxnews\"".format(val))
 
 
+def shuffle_data(X, Y, seed = 10):
+    np.random.seed(seed)
+    np.random.shuffle(X)
+    np.random.seed(seed)
+    np.random.shuffle(Y)
+    return X,Y
+
+
+def train_and_save(cloudant_acc, cloudant_dbs, cloudant_password, filename, hidden_dims=50, epochs=10):
+    _dbs = init_cloudant_client(cloudant_acc, cloudant_dbs, cloudant_password)
+    
+    # X and Y is for the NN. X is the data. Y is the target.
+    _X, _Y = preprocessing_transform_to_X_Y(_dbs)
+    
+    #Filtered X, Y so there is an evenly distribution betweeen negative and positive
+    _X, _Y = filter_to_balance_data(_X, _Y)
+
+    # Shuffles data points
+    _X, _Y = shuffle_data(_X, _Y)
+    
+    _X = preprocessing_tokenize(_X)
+    _Y = preprocessing_categorize(_Y)
+
+    
+    _model = gen_keras_model(_X, hidden_dims)
+    _loss, _score = fit_eval_keras_model(0.95, _model, _X, _Y, epochs=EPOCHS)
+    
+    _fname = filename+str(_score)+".h5"
+    _model.save(_fname)
+    return _fname, _loss, _score, _model
+
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--cloudant_acc', dest='cloudant_account', help='Cloudant account')
-    parser.add_argument('--cloudant_dbs',  dest='cloudant_databases', help='Cloudant databases', type=own_list)
-    parser.add_argument('--cloudant_pass', dest='cloudant_password', help='Cloudant password')
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--cloudant_acc', dest='cloudant_account', help='Cloudant account')
+    # parser.add_argument('--cloudant_dbs',  dest='cloudant_databases', help='Cloudant databases', type=own_list)
+    # parser.add_argument('--cloudant_pass', dest='cloudant_password', help='Cloudant password')
+    #
+    # args = parser.parse_args()
+    #
+    # _fname, _loss, _score, _model = train_and_save(args.cloudant_account, args.cloudant_databases, args.cloudant_password, 'model_')
+    # print("Loss: {}, Score: {}".format(_loss, _score))
 
-    args = parser.parse_args()
+    test_text = ["The quick brown fox jumped over the! slow turtle. Mr brown jumps and became the slowest of the turtles."]
 
-    dbs = init_cloudant_client(args.cloudant_account, args.cloudant_databases, args.cloudant_password)
+    _tok = Tokenizer(num_words=30,
+                          filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
+                          lower=True,
+                          split=" ",
+                          char_level=False)
+    _tok.fit_on_texts(test_text)
+
+    print(_tok.word_index)
+    print(len(_tok.word_index))
+
+    mans = one_hot(test_text[0], 30, split=' ')
 
 
+    map = {}
 
-    # X and Y is for the NN. X is the data. Y is the target.
-    X, Y = preprocessing_transform_to_X_Y(dbs)
+    for i, word in enumerate(test_text[0].split()):
+        val = map.get(mans[i])
+        if val is None:
+            map[mans[i]] = [word]
+        else:
+            val.append(word)
+            map[mans[i]] = val
 
-    #Filtered X, Y so there is an evenly distribution betweeen negative and positive
-    X, Y = filter_to_balance_data(X, Y)
+    print(map)
+    print(mans)
 
-    X = preprocessing_tokenize(X)
-    Y = preprocessing_categorize(Y)
+    embeddings_index = {}
+    glove_data = '/Users/alexanderengelhardt/Downloads/glove.6B/glove.6B.50d.txt'
+    f = open(glove_data)
+    for line in f:
+        values = line.split()
+        word = values[0]
+        value = np.asarray(values[1:], dtype='float32')
+        embeddings_index[word] = value
+    f.close()
 
-    model = gen_keras_model(X, 50)
-    print("Model summary:")
-    print(model.summary())
+    print('Loaded %s word vectors.' % len(embeddings_index))
 
-    loss, score = fit_eval_keras_model(0.90, model, X, Y, epochs=10)
-    print("")
-    print("")
-    print("Loss[{}], Score[{}]".format(loss, score))
+    # embedding_dimension = 10
+    # word_index = tokenizer.word_index
 
     keras_to_java(model)
