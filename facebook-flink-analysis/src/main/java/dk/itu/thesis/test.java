@@ -39,6 +39,8 @@ public class test {
         String model_path = "/home/tore/Development/Thesis/SBSA/cloudant-keras/keras_1.2.2_model/model.h5";
         String json_array = "/home/tore/Development/Thesis/SBSA/cloudant-keras/news_array";
 
+        KerasSentimentProcessor k = KerasSentimentProcessor.create();
+
 //        JsonParser parser = new JsonParser();
 //        JsonArray asJsonArray = parser.parse(new FileReader(json_array)).getAsJsonArray();
 
@@ -81,7 +83,7 @@ public class test {
     }
 
     /*
-        
+
      */
     private static void testStanfordIMDB() throws IOException {
         StanfordSentimentProcessor sentimentProcessor = StanfordSentimentProcessor.create();
