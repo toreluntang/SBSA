@@ -1,38 +1,24 @@
 package dk.itu.thesis;
 
-import com.google.common.reflect.TypeToken;
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
-import java.io.FileReader;
+import dk.itu.thesis.sentimentprocessor.KerasSentimentProcessor;
+import dk.itu.thesis.sentimentprocessor.StanfordSentimentProcessor;
 import org.deeplearning4j.nn.modelimport.keras.InvalidKerasConfigurationException;
 import org.deeplearning4j.nn.modelimport.keras.KerasModelImport;
 import org.deeplearning4j.nn.modelimport.keras.UnsupportedKerasConfigurationException;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
-import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.factory.Nd4j;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class test {
+public class TestClassForExperiments {
 
 
     public static void main(String[] args) throws Exception {
         testLoadDeepLearning4JModel();
     }
-
-
 
     private static void testLoadDeepLearning4JModel() throws UnsupportedKerasConfigurationException, IOException, InvalidKerasConfigurationException {
         String json_model_path = "/home/tore/Development/Thesis/SBSA/cloudant-keras/keras_1.2.2_model/model.json";
@@ -61,7 +47,6 @@ public class test {
 //            System.out.println(Arrays.toString(predict));
 //
 //        }
-
 
 
 //        System.out.println("Probabilities: " + result.toString());

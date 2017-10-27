@@ -10,3 +10,11 @@ create table sentiment(
     reaction_sad numeric,
     reaction_angry numeric
 );
+
+
+SELECT
+avg(inserted_at - TO_CHAR(TO_TIMESTAMP(recieved_at_flink / 1000), 'YYYY-MM-DD HH24:MI:SS')::timestamp AT TIME ZONE 'UTC+02')
+FROM sentiment
+
+
+

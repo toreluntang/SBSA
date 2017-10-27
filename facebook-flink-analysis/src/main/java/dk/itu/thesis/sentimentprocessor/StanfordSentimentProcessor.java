@@ -1,4 +1,4 @@
-package dk.itu.thesis;
+package dk.itu.thesis.sentimentprocessor;
 
 import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations;
 import edu.stanford.nlp.pipeline.*;

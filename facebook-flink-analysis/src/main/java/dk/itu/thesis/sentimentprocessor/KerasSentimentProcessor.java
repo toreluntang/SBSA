@@ -1,4 +1,4 @@
-package dk.itu.thesis;
+package dk.itu.thesis.sentimentprocessor;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;

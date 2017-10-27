@@ -1,15 +1,14 @@
-package dk.itu.thesis;
+package dk.itu.thesis.pipeline;
 
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
+import dk.itu.thesis.entity.FacebookPost;
+import dk.itu.thesis.entity.SentimentResult;
+import dk.itu.thesis.mapper.StanfordMapper;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.io.jdbc.JDBCOutputFormat;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -17,11 +16,10 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
 import org.apache.flink.streaming.util.serialization.SimpleStringSchema;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
-import org.deeplearning4j.nn.modelimport.keras.KerasModelImport;
-import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 
 import java.lang.reflect.Type;
 import java.sql.Types;
+import java.time.Instant;
 import java.util.*;
 //import org.apache.flink.streaming.connectors.json.JSONParser;
 
@@ -36,12 +34,6 @@ public class AdvancedKafkaFacebookAnalysis {
         String topic = null;
         String user = null;
         String password = null;
-
-
-        String json_model_path = "/home/tore/Development/Thesis/SBSA/cloudant-keras/keras_1.2.2_model/model.json";
-        String model_path = "/home/tore/Development/Thesis/SBSA/cloudant-keras/keras_1.2.2_model/model.h5";
-
-        MultiLayerNetwork multiLayerNetwork = KerasModelImport.importKerasSequentialModelAndWeights(json_model_path, model_path);
 
 
         try {
@@ -71,6 +63,8 @@ public class AdvancedKafkaFacebookAnalysis {
         }
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.getConfig().setLatencyTrackingInterval(100L);
+//        env.getConfig().setMaxParallelism(2);
 
 
         // Kafka setup
@@ -93,18 +87,26 @@ public class AdvancedKafkaFacebookAnalysis {
                 new FlatMapFunction<String, JsonObject>() {
                     @Override
                     public void flatMap(String value, Collector<JsonObject> out) throws Exception {
+                        long recievedMessageTs = Instant.now().toEpochMilli();
+
                         JsonParser jsonParser = new JsonParser();
                         System.out.println("Received message: " + value);
+
                         try {
                             JsonElement jsonElement = jsonParser.parse(value);
 
                             if (jsonElement instanceof JsonObject) {
-                                out.collect(jsonElement.getAsJsonObject());
+                                JsonObject jsonObject = jsonElement.getAsJsonObject();
+                                jsonObject.addProperty("flinkRecievedMessage", recievedMessageTs);
+
+                                out.collect(jsonObject);
 
                             } else if (jsonElement instanceof JsonArray) {
 
                                 for (JsonElement je : jsonElement.getAsJsonArray()) {
-                                    out.collect(je.getAsJsonObject());
+                                    JsonObject jsonObject = je.getAsJsonObject();
+                                    jsonObject.addProperty("flinkRecievedMessage", recievedMessageTs);
+                                    out.collect(jsonObject);
                                 }
                             }
                         } catch (JsonSyntaxException jse) {
@@ -128,6 +130,10 @@ public class AdvancedKafkaFacebookAnalysis {
 
                         if (null != value) {
 
+                            if (value.has("flinkRecievedMessage") && !value.get("flinkRecievedMessage").isJsonNull()) {
+                                FacebookPost.recievedAt = value.get("flinkRecievedMessage").getAsLong();
+                            }
+
                             if (value.has("message") && !value.get("message").isJsonNull()) {
                                 FacebookPost.message = value.get("message").getAsString();
                             }
@@ -143,15 +149,18 @@ public class AdvancedKafkaFacebookAnalysis {
                             if (value.has("username") && !value.get("username").isJsonNull()) {
                                 FacebookPost.username = value.get("username").getAsString();
                             }
-                            if (value.has("tokenized_data") && !value.get("tokenized_data").isJsonNull()) {
-                                JsonArray tokenizedData = value.get("tokenized_data").getAsJsonArray();
 
-                                Type listType = new TypeToken<List<Double>>() {
-                                }.getType();
-                                List<Double> doubleList = new Gson().fromJson(tokenizedData, listType);
+                            if (false) { // TODO Not needed unless keras
+                                if (value.has("tokenized_data") && !value.get("tokenized_data").isJsonNull()) {
+                                    JsonArray tokenizedData = value.get("tokenized_data").getAsJsonArray();
 
-                                double[] tokenizedDataArray = doubleList.stream().mapToDouble(Double::doubleValue).toArray();
-                                FacebookPost.tokenizedDataArray = tokenizedDataArray;
+                                    Type listType = new TypeToken<List<Double>>() {
+                                    }.getType();
+                                    List<Double> doubleList = new Gson().fromJson(tokenizedData, listType);
+
+                                    double[] tokenizedDataArray = doubleList.stream().mapToDouble(Double::doubleValue).toArray();
+                                    FacebookPost.tokenizedDataArray = tokenizedDataArray;
+                                }
                             }
                         }
                         return FacebookPost;
@@ -186,6 +195,7 @@ public class AdvancedKafkaFacebookAnalysis {
 
                         if (value.length() > 2) {
                             value = removeUrls(value);
+
                             value = removeBadSymbols(value);
                             value = removeStopWords(value);
                             input.concatenatedNews = value.toLowerCase();
@@ -219,11 +229,11 @@ public class AdvancedKafkaFacebookAnalysis {
                     }
                 });
 
-//        SingleOutputStreamOperator<SentimentResult> messageSentimentTupleStream = splitOnNewLineStream.map(new SentimentMapper());
-        SingleOutputStreamOperator<SentimentResult> messageSentimentTupleStream = splitOnNewLineStream.map(new KerasMapper());
-        messageSentimentTupleStream.print();
+        SingleOutputStreamOperator<SentimentResult> messageSentimentTupleStream = splitOnNewLineStream.map(new StanfordMapper());
+//        SingleOutputStreamOperator<SentimentResult> messageSentimentTupleStream = splitOnNewLineStream.map(new KerasMapper());
+//        messageSentimentTupleStream.print();
 
-        /*
+//        /*
 
         String query = "" +
                 "INSERT INTO sentiment (" +
@@ -236,8 +246,9 @@ public class AdvancedKafkaFacebookAnalysis {
                 "   ,reaction_wow\n" +
                 "   ,reaction_haha\n" +
                 "   ,reaction_sad\n" +
-                "   ,reaction_angry) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+                "   ,reaction_angry\n" +
+                "   ,recieved_at_flink) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
         JDBCOutputFormat jdbcOutput = JDBCOutputFormat.buildJDBCOutputFormat()
                 .setDrivername("org.postgresql.Driver")
@@ -246,7 +257,7 @@ public class AdvancedKafkaFacebookAnalysis {
                 .setUsername(user)
                 .setPassword(password)
                 .setQuery(query)
-                .setSqlTypes(new int[]{Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.DOUBLE, Types.VARCHAR, Types.INTEGER, Types.INTEGER, Types.INTEGER, Types.INTEGER, Types.INTEGER}) //set the types
+                .setSqlTypes(new int[]{Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.DOUBLE, Types.VARCHAR, Types.INTEGER, Types.INTEGER, Types.INTEGER, Types.INTEGER, Types.INTEGER, Types.BIGINT}) //set the types
                 .finish();
 
         String finalTopic = topic;
@@ -254,7 +265,7 @@ public class AdvancedKafkaFacebookAnalysis {
                 .map(new MapFunction<SentimentResult, Row>() {
                     @Override
                     public Row map(SentimentResult sentimentResult) throws Exception {
-                        Row row = new Row(10);
+                        Row row = new Row(11);
 
                         row.setField(0, sentimentResult.facebookPost.id);
                         row.setField(1, sentimentResult.facebookPost.username);
@@ -266,6 +277,7 @@ public class AdvancedKafkaFacebookAnalysis {
                         row.setField(7, sentimentResult.facebookPost.reactions.get("HAHA"));
                         row.setField(8, sentimentResult.facebookPost.reactions.get("SAD"));
                         row.setField(9, sentimentResult.facebookPost.reactions.get("ANGRY"));
+                        row.setField(10, sentimentResult.facebookPost.recievedAt);
 
                         return row;
                     }
@@ -274,103 +286,10 @@ public class AdvancedKafkaFacebookAnalysis {
 
         resultRow.writeUsingOutputFormat(jdbcOutput);
 
-*/
+//*/
         env.execute();
-
-//        System.out.println("Au revoir");
     }
 
-    public static class KerasMapper extends RichMapFunction<FacebookPost, SentimentResult> {
-
-        private KerasSentimentProcessor processor;
-
-        @Override
-        public void open(Configuration parameters) throws Exception {
-            super.open(parameters);
-            processor = KerasSentimentProcessor.create();
-        }
-
-        @Override
-        public SentimentResult map(FacebookPost value) throws Exception {
-            int sentiment = processor.getSentiment(value.tokenizedDataArray);
-
-            SentimentResult sentimentResult = new SentimentResult();
-            sentimentResult.facebookPost = value;
-            sentimentResult.sentimentString = String.valueOf(sentiment);
-            sentimentResult.sentiment = sentiment;
-
-            return sentimentResult;
-
-        }
-    }
-
-
-    public static class SentimentMapper extends RichMapFunction<FacebookPost, SentimentResult> {
-
-        private StanfordSentimentProcessor processor;
-
-        @Override
-        public void open(Configuration parameters) throws Exception {
-            super.open(parameters);
-            processor = StanfordSentimentProcessor.create();
-        }
-
-        @Override
-        public SentimentResult map(FacebookPost value) throws Exception {
-            Tuple2<Double, String> result = processor.getSentiment(value.concatenatedNews);
-
-            SentimentResult sentimentResult = new SentimentResult();
-            sentimentResult.facebookPost = value;
-            sentimentResult.sentimentString = result.f1;
-            sentimentResult.sentiment = result.f0;
-
-            return sentimentResult;
-        }
-    }
-
-    public static class SentimentResult {
-        public FacebookPost facebookPost;
-        public String sentimentString;
-        public double sentiment;
-
-        @Override
-        public String toString() {
-            return "SentimentResult{" +
-                    "facebookPost=" + facebookPost +
-                    ", sentimentString='" + sentimentString + '\'' +
-                    ", sentiment=" + sentiment +
-                    '}';
-        }
-    }
-
-    public static class FacebookPost {
-        public String id;
-        public String username;
-        public String message;
-        public String headline;
-        public String concatenatedNews;
-        public Map<String, Integer> reactions;
-        public double[] tokenizedDataArray;
-
-        public FacebookPost() {
-            reactions = new HashMap<>();
-            reactions.put("LOVE", 0);
-            reactions.put("HAHA", 0);
-            reactions.put("WOW", 0);
-            reactions.put("SAD", 0);
-            reactions.put("ANGRY", 0);
-        }
-
-        @Override
-        public String toString() {
-            return "FacebookPost{" +
-                    "message='" + message + '\'' +
-                    ", headline='" + headline + '\'' +
-                    ", concatenatedNews='" + concatenatedNews + '\'' +
-                    ", reactions=" + reactions +
-                    '}';
-        }
-    }
 
 }
 

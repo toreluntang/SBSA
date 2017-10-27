@@ -1,6 +1,7 @@
-package dk.itu.thesis;
+package dk.itu.thesis.pipeline;
 
 import com.google.gson.*;
+import dk.itu.thesis.sentimentprocessor.StanfordSentimentProcessor;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
