@@ -64,6 +64,7 @@ public class AdvancedKafkaFacebookAnalysis {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.getConfig().setLatencyTrackingInterval(100L);
+
 //        env.getConfig().setMaxParallelism(2);
 
 
@@ -119,6 +120,7 @@ public class AdvancedKafkaFacebookAnalysis {
                 new MapFunction<JsonObject, FacebookPost>() {
                     @Override
                     public FacebookPost map(JsonObject value) throws Exception {
+                        System.out.printf("Create facebook POJO stream.");
 
                         FacebookPost FacebookPost = new FacebookPost();
                         FacebookPost.reactions.put("LOVE", getReactionCount("LOVE", value));
@@ -189,6 +191,7 @@ public class AdvancedKafkaFacebookAnalysis {
 
                     @Override
                     public void flatMap(FacebookPost input, Collector<FacebookPost> out) throws Exception {
+                        System.out.printf("Preprocess the content stream");
                         String value = input.headline + ". " + input.message;
 
                         value = value.replaceAll("\n", ".");
@@ -251,6 +254,7 @@ public class AdvancedKafkaFacebookAnalysis {
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
         JDBCOutputFormat jdbcOutput = JDBCOutputFormat.buildJDBCOutputFormat()
+
                 .setDrivername("org.postgresql.Driver")
                 .setBatchInterval(1)
                 .setDBUrl("jdbc:postgresql://elmer.db.elephantsql.com:5432/fapuqfvg")
@@ -260,13 +264,14 @@ public class AdvancedKafkaFacebookAnalysis {
                 .setSqlTypes(new int[]{Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.DOUBLE, Types.VARCHAR, Types.INTEGER, Types.INTEGER, Types.INTEGER, Types.INTEGER, Types.INTEGER, Types.BIGINT}) //set the types
                 .finish();
 
-        String finalTopic = topic;
         SingleOutputStreamOperator<Row> resultRow = messageSentimentTupleStream
                 .map(new MapFunction<SentimentResult, Row>() {
                     @Override
                     public Row map(SentimentResult sentimentResult) throws Exception {
-                        Row row = new Row(11);
 
+                        System.out.println("postgresql stream.");
+
+                        Row row = new Row(11);
                         row.setField(0, sentimentResult.facebookPost.id);
                         row.setField(1, sentimentResult.facebookPost.username);
                         row.setField(2, sentimentResult.facebookPost.concatenatedNews);
@@ -285,11 +290,10 @@ public class AdvancedKafkaFacebookAnalysis {
 
 
         resultRow.writeUsingOutputFormat(jdbcOutput);
-
+//        resultRow.print();
 //*/
         env.execute();
+
     }
-
-
 }
 
