@@ -21,7 +21,7 @@ def get_wordnet_pos(treebank_tag):
 
 def nltk_preprocess(text):
     text = text.lower()
-
+    return_str = ''
     for sent in sent_tokenize(text):
         words_filtered = []
 
@@ -35,11 +35,15 @@ def nltk_preprocess(text):
             tag = get_wordnet_pos(tag)
             word = WordNetLemmatizer().lemmatize(word, tag)
             word_lemmatized.append(word)
-
+        
+        return_str = return_str + ' '.join(word_lemmatized) + '. '
             # print(word_lemmatized)
+    return return_str
 
 
 test_text = "The quick brown fox jumped over the! slow turtle. Mr brown jumps and became the slowest of the turtles."
+
+print(nltk_preprocess(test_text))
 
 def measure_time():
     time_taken = []
@@ -51,10 +55,12 @@ def measure_time():
 
     return time_taken
 
-l = measure_time()
-print(l)
+#l = measure_time()
+#print(l)
 
-print(float(sum(l)) / max(len(l), 1))
+#print(float(sum(l)) / max(len(l), 1))
+
+
 
 
 

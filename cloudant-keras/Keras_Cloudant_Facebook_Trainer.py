@@ -3,6 +3,8 @@ import pprint
 from cloudant.client import Cloudant
 import numpy as np
 import os
+import time
+import re
 
 #Keras imports
 from keras.utils import np_utils
@@ -10,11 +12,16 @@ from keras.models import Sequential
 from keras.layers import Dense, Activation, Dropout, Convolution1D, GlobalMaxPooling1D, MaxPooling1D, Conv1D, LSTM, Flatten
 from keras import losses
 from keras import optimizers
-from keras.preprocessing.text import Tokenizer, one_hot
+from keras.preprocessing.text import Tokenizer, hashing_trick
 from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
 from keras.preprocessing.sequence import pad_sequences
 from keras.datasets import imdb
+
+#nltk
+from nltk import pos_tag
+from nltk import WordNetLemmatizer, sent_tokenize, RegexpTokenizer
+from nltk.corpus import stopwords, wordnet
 
 import ssl
 
@@ -31,7 +38,7 @@ ssl._create_default_https_context = ssl._create_unverified_context
 # 72 percent
 OPTIMIZER = optimizers.adam()
 MAX_SEQUENCE_LENGTH = 150
-NUM_WORDS = 10000
+NUM_WORDS = 50000
 EMBEDDING_OUTPUT = 64
 LSTM_SIZE = 50
 EPOCHS = 2
@@ -91,7 +98,9 @@ def reactions(doc):
 
     # Neutral
     wow = doc['WOW']['summary']['total_count']
-    return love, haha, wow, sad, angry
+    like = doc['LIKE']['summary']['total_count']
+
+    return love, haha, wow, sad, angry, like
 
 
 def content(doc):
@@ -115,10 +124,10 @@ def content(doc):
 
 
 def combine_content(msg, name, desc):
-    return msg + " " + name + " " + desc
+    return msg + ". " + name + ". " + desc
 
 
-def determine_category(love, haha, wow, sad, angry):
+def determine_category(love, haha, wow, sad, angry, like):
     """
     if love and haha is more than sad and angry then it is positive
     otherwise it is negative. Positive = 1. Negative = 0.
@@ -131,10 +140,19 @@ def determine_category(love, haha, wow, sad, angry):
     """
     _positive = love + haha
     _negative = sad + angry
-    if _positive > _negative:
+    _neutral = wow + like
+    if (_positive + _negative + _neutral) < 50:
+        return -1
+
+    # 50 pos
+    # 25 neg
+    # pos / (pos+neg) = amount of pos
+    if _positive > 0 and (_positive / (_positive + _negative)) > 0.75:
         return 1
-    else:
+    elif _negative > 0 and (_negative / (_negative + _positive) > 0.75):
         return 0
+    else:
+        return -1
 
 
 def preprocessing_transform_to_X_Y(dbs, verbose=True):
@@ -145,7 +163,7 @@ def preprocessing_transform_to_X_Y(dbs, verbose=True):
         for doc in db:
 
             # extracts the reactions from the document
-            love, haha, wow, sad, angry = reactions(doc)
+            love, haha, wow, sad, angry, like = reactions(doc)
 
             # extracts the content from the document
             msg, name, desc = content(doc)
@@ -154,10 +172,11 @@ def preprocessing_transform_to_X_Y(dbs, verbose=True):
             data = combine_content(msg, name, desc)
 
             # Gives 0 if negative or 1 if positive.
-            category = determine_category(love, haha, wow, sad, angry)
+            category = determine_category(love, haha, wow, sad, angry, like)
 
-            _X.append(data)
-            _Y.append(category)
+            if category != -1:
+                _X.append(data)
+                _Y.append(category)
 
     if verbose:
         print("Size of X = {}. Size of Y = {}.".format(len(_X), len(_Y)))
@@ -205,11 +224,12 @@ def gen_keras_model(X, hidden_dims, activation_func="relu", embedding_layer=None
         _model.add(Embedding(NUM_WORDS, EMBEDDING_OUTPUT, input_length=MAX_SEQUENCE_LENGTH))
     else:
         _model.add(embedding_layer)
-    _model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
-    _model.add(MaxPooling1D(pool_size=3))
-    _model.add(LSTM(LSTM_SIZE))
+    _model.add(Conv1D(filters=64, kernel_size=2, padding='same', activation='relu'))
+    _model.add(MaxPooling1D(pool_size=2))
+    # _model.add(Conv1D(filters=int(EMBEDDING_OUTPUT/2), kernel_size=2, padding='same', activation='relu'))
+    _model.add(LSTM(64))
     _model.add(Dropout(0.2))
-    _model.add(Dense(32, activation='relu'))
+    _model.add(Dense(64, activation='relu'))
     _model.add(Dense(2, activation='sigmoid'))
     _model.compile(loss='binary_crossentropy', optimizer=OPTIMIZER, metrics=['accuracy'])
     print(_model.summary())
@@ -256,7 +276,7 @@ def preprocessing_tokenize(X, num_words=160):
 
     _X = []
     for x in X:
-        _X.append(one_hot(x, NUM_WORDS, split=' '))
+        _X.append(hashing_trick(x, NUM_WORDS, hash_function='md5', split=' '))
 
     _X = pad_sequences(_X, maxlen=MAX_SEQUENCE_LENGTH)
 
@@ -279,6 +299,7 @@ def keras_to_java(model):
     model.save_weights("model.h5")
     print("Saved model to disk")
 
+
 def own_list(val):
     try:
         return str(val).replace(" ", "").split(",")
@@ -298,23 +319,84 @@ def train_and_save(cloudant_acc, cloudant_dbs, cloudant_password, filename, hidd
     _dbs = init_cloudant_client(cloudant_acc, cloudant_dbs, cloudant_password)
     
     # X and Y is for the NN. X is the data. Y is the target.
+    start = time.time()
     _X, _Y = preprocessing_transform_to_X_Y(_dbs)
+    print("preprocessing transforming to X and Y took: {}".format(time.time() - start))
     
-    #Filtered X, Y so there is an evenly distribution betweeen negative and positive
+    # Filtered X, Y so there is an evenly distribution betweeen negative and positive
+    start = time.time()
     _X, _Y = filter_to_balance_data(_X, _Y)
+    print("filter to balance took: {}".format(time.time() - start))
+
+    # Lemmatize
+    start = time.time()
+    _X = nltk_lemmatize_preprocessing(_X)
+    print("nltk lemmatization took: {}".format(time.time() - start))
 
     # Shuffles data points
+    start = time.time()
     _X, _Y = shuffle_data(_X, _Y)
-    
+    print("shuffle data took: {}".format(time.time() - start))
+
+    start = time.time()
     _X = preprocessing_tokenize(_X)
     _Y = preprocessing_categorize(_Y)
-    
+    print("tokenize and categorize took: {}".format(time.time() - start))
+
+    start = time.time()
     _model = gen_keras_model(_X, hidden_dims)
     _loss, _score = fit_eval_keras_model(0.95, _model, _X, _Y, epochs=EPOCHS)
-    
+    print("generate model and training took: {}".format(time.time() - start))
+
     _fname = filename+str(_score)+".h5"
     _model.save(_fname)
     return _fname, _loss, _score, _model
+
+
+def get_wordnet_pos(treebank_tag):
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return ''
+
+
+def nltk_lemmatize_preprocessing(X):
+    _stopwords = set(stopwords.words('english'))
+    _regextknz = RegexpTokenizer(r'\w+')
+    _lemmatizer = WordNetLemmatizer()
+
+    _X = []
+    for text in X:
+        text = text.lower()
+        text = re.sub(r"(?i)(?:https?|ftp)://[\n\S]+", "", text)
+        return_str = ''
+
+        for sent in sent_tokenize(text):
+            words_filtered = []
+
+            for word in _regextknz.tokenize(sent):
+                if word not in _stopwords:
+                    words_filtered.append(word)
+
+            word_lemmatized = []
+
+            for (word, tag) in pos_tag(words_filtered):
+                tag = get_wordnet_pos(tag)
+                if tag != '':
+                    word = _lemmatizer.lemmatize(word, tag)
+                word_lemmatized.append(word)
+
+            return_str = return_str + ' '.join(word_lemmatized) + '. '
+            # print(word_lemmatized)
+        _X.append(return_str)
+    return _X
+
 
 
 #TODO does not twork
