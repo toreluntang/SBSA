@@ -80,7 +80,7 @@ public class SimpleKafkaFacebookAnalysis {
                     @Override
                     public void flatMap(String value, Collector<JsonObject> out) throws Exception {
                         JsonParser jsonParser = new JsonParser();
-                        System.out.println("Received message: " + value);
+                        System.out.println("SIMPLE Received message: " + value);
                         try {
                             JsonElement jsonElement = jsonParser.parse(value);
 
@@ -191,14 +191,9 @@ public class SimpleKafkaFacebookAnalysis {
                         return row;
                     }
                 });
-
-
         resultRow.writeUsingOutputFormat(jdbcOutput);
-
 */
         env.execute();
-
-
     }
 
 

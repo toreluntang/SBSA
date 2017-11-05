@@ -20,6 +20,9 @@ import org.apache.flink.util.Collector;
 import java.lang.reflect.Type;
 import java.sql.Types;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoField;
 import java.util.*;
 //import org.apache.flink.streaming.connectors.json.JSONParser;
 
@@ -34,6 +37,9 @@ public class AdvancedKafkaFacebookAnalysis {
         String topic = null;
         String user = null;
         String password = null;
+        String postgresqldb = null;
+        String postgresqlhost = null;
+        int sqlBatchInterval = 1;
 
 
         try {
@@ -43,6 +49,9 @@ public class AdvancedKafkaFacebookAnalysis {
             topic = params.getRequired("topic");
             user = params.getRequired("sqluser");
             password = params.getRequired("sqlpass");
+            postgresqldb = params.getRequired("sqldb");
+            postgresqlhost = params.getRequired("sqlhost");
+            sqlBatchInterval = params.getInt("sqlBatchInterval", 1);
 
         } catch (Exception e) {
             if (null == kafkahostname)
@@ -59,13 +68,16 @@ public class AdvancedKafkaFacebookAnalysis {
 
             if (null == password)
                 System.err.println("No elephant password specified. Please add --sqlpass <password>");
+            if (null == postgresqldb)
+                System.err.println("No postgres db specified. Please add --sqldb <db>");
+
+            if (null == postgresqlhost)
+                System.err.println("No postgres host specified. Please add --sqlhost <hostname>");
             return;
         }
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.getConfig().setLatencyTrackingInterval(100L);
-
-//        env.getConfig().setMaxParallelism(2);
 
 
         // Kafka setup
@@ -88,17 +100,17 @@ public class AdvancedKafkaFacebookAnalysis {
                 new FlatMapFunction<String, JsonObject>() {
                     @Override
                     public void flatMap(String value, Collector<JsonObject> out) throws Exception {
-                        long recievedMessageTs = Instant.now().toEpochMilli();
 
+                        long receivedMessageTs = System.currentTimeMillis();
                         JsonParser jsonParser = new JsonParser();
-                        System.out.println("Received message: " + value);
+//                        System.out.println("Received message2: " + value);
 
                         try {
                             JsonElement jsonElement = jsonParser.parse(value);
 
                             if (jsonElement instanceof JsonObject) {
                                 JsonObject jsonObject = jsonElement.getAsJsonObject();
-                                jsonObject.addProperty("flinkRecievedMessage", recievedMessageTs);
+                                jsonObject.addProperty("flinkRecievedMessage", receivedMessageTs);
 
                                 out.collect(jsonObject);
 
@@ -106,7 +118,7 @@ public class AdvancedKafkaFacebookAnalysis {
 
                                 for (JsonElement je : jsonElement.getAsJsonArray()) {
                                     JsonObject jsonObject = je.getAsJsonObject();
-                                    jsonObject.addProperty("flinkRecievedMessage", recievedMessageTs);
+                                    jsonObject.addProperty("flinkRecievedMessage", receivedMessageTs);
                                     out.collect(jsonObject);
                                 }
                             }
@@ -120,7 +132,7 @@ public class AdvancedKafkaFacebookAnalysis {
                 new MapFunction<JsonObject, FacebookPost>() {
                     @Override
                     public FacebookPost map(JsonObject value) throws Exception {
-                        System.out.printf("Create facebook POJO stream.");
+//                        System.out.println("Create facebook POJO stream.");
 
                         FacebookPost FacebookPost = new FacebookPost();
                         FacebookPost.reactions.put("LOVE", getReactionCount("LOVE", value));
@@ -191,7 +203,7 @@ public class AdvancedKafkaFacebookAnalysis {
 
                     @Override
                     public void flatMap(FacebookPost input, Collector<FacebookPost> out) throws Exception {
-                        System.out.printf("Preprocess the content stream");
+//                        System.out.printf("Preprocess the content stream");
                         String value = input.headline + ". " + input.message;
 
                         value = value.replaceAll("\n", ".");
@@ -256,8 +268,9 @@ public class AdvancedKafkaFacebookAnalysis {
         JDBCOutputFormat jdbcOutput = JDBCOutputFormat.buildJDBCOutputFormat()
 
                 .setDrivername("org.postgresql.Driver")
-                .setBatchInterval(1)
-                .setDBUrl("jdbc:postgresql://elmer.db.elephantsql.com:5432/fapuqfvg")
+                .setBatchInterval(sqlBatchInterval)
+
+                .setDBUrl("jdbc:postgresql://" + postgresqlhost + ":5432/" + postgresqldb)
                 .setUsername(user)
                 .setPassword(password)
                 .setQuery(query)
@@ -269,7 +282,7 @@ public class AdvancedKafkaFacebookAnalysis {
                     @Override
                     public Row map(SentimentResult sentimentResult) throws Exception {
 
-                        System.out.println("postgresql stream.");
+//                        System.out.println("postgresql stream.");
 
                         Row row = new Row(11);
                         row.setField(0, sentimentResult.facebookPost.id);
@@ -289,8 +302,11 @@ public class AdvancedKafkaFacebookAnalysis {
                 });
 
 
+
+
         resultRow.writeUsingOutputFormat(jdbcOutput);
 //        resultRow.print();
+//        System.out.println("Pipeline: " + env.getExecutionPlan());
 //*/
         env.execute();
 

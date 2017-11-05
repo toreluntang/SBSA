@@ -22,7 +22,7 @@ under the License.
 
     <groupId>dk.itu.thesis.sbss</groupId>
     <artifactId>facebookanalysis</artifactId>
-    <version>0.1</version>
+    <version>0.2</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -129,7 +129,7 @@ under the License.
         <dependency>
             <groupId>edu.stanford.nlp</groupId>
             <artifactId>stanford-corenlp</artifactId>
-            <version>3.8.0</version>
+        <version>3.8.0</version>
             <classifier>models</classifier>
         </dependency>
 
@@ -364,7 +364,7 @@ under the License.
                             <transformers>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>dk.itu.thesis.pipeline.SimpleKafkaFacebookAnalysis</mainClass>
+                                    <mainClass>dk.itu.thesis.pipeline.AdvancedKafkaFacebookAnalysis</mainClass>
                                 </transformer>
                             </transformers>
 
