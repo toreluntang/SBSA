@@ -129,7 +129,7 @@ under the License.
         <dependency>
             <groupId>edu.stanford.nlp</groupId>
             <artifactId>stanford-corenlp</artifactId>
-        <version>3.8.0</version>
+            <version>3.8.0</version>
             <classifier>models</classifier>
         </dependency>
 
@@ -292,8 +292,8 @@ under the License.
 
                                     WARNING: You have to remove these excludes if your code relies on other
                                     versions of these dependencies.
-
                                     -->
+                                    <exclude></exclude>
 
                                     <exclude>log4j:log4j</exclude>
                                     <exclude>org.scala-lang:scala-library</exclude>

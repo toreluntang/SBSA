@@ -10,6 +10,7 @@ import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.io.jdbc.JDBCOutputFormat;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
@@ -40,6 +41,7 @@ public class AdvancedKafkaFacebookAnalysis {
         String postgresqldb = null;
         String postgresqlhost = null;
         int sqlBatchInterval = 1;
+        String path = "";
 
 
         try {
@@ -52,6 +54,8 @@ public class AdvancedKafkaFacebookAnalysis {
             postgresqldb = params.getRequired("sqldb");
             postgresqlhost = params.getRequired("sqlhost");
             sqlBatchInterval = params.getInt("sqlBatchInterval", 1);
+            path = params.get("path", "");
+
 
         } catch (Exception e) {
             if (null == kafkahostname)
@@ -77,7 +81,7 @@ public class AdvancedKafkaFacebookAnalysis {
         }
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.getConfig().setLatencyTrackingInterval(100L);
+        env.getConfig().setLatencyTrackingInterval(10L);
 
 
         // Kafka setup
@@ -87,12 +91,14 @@ public class AdvancedKafkaFacebookAnalysis {
 
 
         // Read raw strings (list of json objects) "[ {nyhed, likes}, {nyhed, likes}, {...} ]"
+/*
         DataStream<String> messageStream = env.addSource(
                 new FlinkKafkaConsumer010<>(
                         topic,
                         new SimpleStringSchema(),
                         properties));
-
+*/
+        DataStreamSource<String> messageStream = env.readTextFile(path);
 
         // Not tested. Should hopefully map all the individual objects in the list to a stream
         SingleOutputStreamOperator<JsonObject> jsonObjectStream = messageStream.flatMap(
@@ -269,7 +275,6 @@ public class AdvancedKafkaFacebookAnalysis {
 
                 .setDrivername("org.postgresql.Driver")
                 .setBatchInterval(sqlBatchInterval)
-
                 .setDBUrl("jdbc:postgresql://" + postgresqlhost + ":5432/" + postgresqldb)
                 .setUsername(user)
                 .setPassword(password)
@@ -304,7 +309,7 @@ public class AdvancedKafkaFacebookAnalysis {
 
 
 
-        resultRow.writeUsingOutputFormat(jdbcOutput);
+//        resultRow.writeUsingOutputFormat(jdbcOutput);
 //        resultRow.print();
 //        System.out.println("Pipeline: " + env.getExecutionPlan());
 //*/

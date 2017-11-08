@@ -45,7 +45,19 @@ public class StanfordSentimentProcessor {
     public Tuple2<Double, String> getSentiment(String text) {
 
         Annotation annotation = tokenizer.process(text);
-        pipeline.annotate(annotation);
+
+        try {
+            pipeline.annotate(annotation);
+        } catch (Exception e) {
+            System.out.println("Binarized sentences not built by parser exception.");
+            System.out.println("Text pass as argument was: " + text);
+            System.out.println("tokenizer.process annotation: " + annotation.toString());
+            System.out.println("pipeline obj: " + pipeline.toString());
+
+            return Tuple2.of(-999.0, text);
+//            e.printStackTrace();
+        }
+
 
         String totalSentimentString = "";
         double totalSentiment = 0.0;
