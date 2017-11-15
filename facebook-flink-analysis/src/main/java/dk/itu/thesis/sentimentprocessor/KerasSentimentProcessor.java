@@ -1,3 +1,4 @@
+/*
 package dk.itu.thesis.sentimentprocessor;
 
 import com.google.gson.Gson;
@@ -59,3 +60,4 @@ public class KerasSentimentProcessor {
 
 
 }
+*/

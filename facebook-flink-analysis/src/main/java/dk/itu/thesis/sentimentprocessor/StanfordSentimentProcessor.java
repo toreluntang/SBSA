@@ -29,7 +29,7 @@ public class StanfordSentimentProcessor {
         pipelineProps.setProperty("parse.binaryTrees", "true");
         pipelineProps.setProperty("enforceRequirements", "false");
 
-        tokenizerProps.setProperty("annotators", "tokenize, ssplit, pos, lemma");
+        tokenizerProps.setProperty("annotators", "tokenize, ssplit, pos, lemma, parse, sentiment");
 
         StanfordCoreNLP tokenizer = new StanfordCoreNLP(tokenizerProps);
         StanfordCoreNLP pipeline = new StanfordCoreNLP(pipelineProps);

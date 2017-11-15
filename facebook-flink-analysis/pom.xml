@@ -133,25 +133,6 @@ under the License.
             <classifier>models</classifier>
         </dependency>
 
-        <dependency>
-            <groupId>org.deeplearning4j</groupId>
-            <artifactId>deeplearning4j-core</artifactId>
-            <version>0.9.1</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.nd4j</groupId>
-            <artifactId>nd4j-native-platform</artifactId>
-            <version>0.9.1</version>
-        </dependency>
-
-        <!--Not sure if needed. Just trying to solve the weird bug-->
-        <!--https://mvnrepository.com/artifact/org.bytedeco/javacpp-->
-        <dependency>
-            <groupId>org.bytedeco</groupId>
-            <artifactId>javacpp</artifactId>
-            <version>1.2.1</version>
-        </dependency>
 
         <!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
         <dependency>

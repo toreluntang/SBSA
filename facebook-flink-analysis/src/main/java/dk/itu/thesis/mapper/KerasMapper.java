@@ -1,3 +1,4 @@
+/*
 package dk.itu.thesis.mapper;
 
 import dk.itu.thesis.entity.FacebookPost;
@@ -28,4 +29,4 @@ public class KerasMapper extends RichMapFunction<FacebookPost, SentimentResult> 
         return sentimentResult;
 
     }
-}
+}*/

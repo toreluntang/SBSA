@@ -57,3 +57,25 @@ SELECT
  FROM sentiment
  group by id
  order by id
+
+
+
+
+ SELECT
+  id,
+  count(id),
+  max(inserted_at) - to_timestamp(min(recieved_at_flink)::double precision / 1000) at time zone 'gmt-1' as total_time,
+EXTRACT(epoch FROM    max(inserted_at) - to_timestamp(min(recieved_at_flink)::double precision / 1000) at time zone 'gmt-1'   ),
+  
+
+ AVG(
+  (inserted_at::timestamp(3) - to_timestamp(recieved_at_flink::double precision / 1000) at time zone 'gmt-1')) as flink_postgres_latency,
+
+ SUM(
+    (inserted_at::timestamp(3) - to_timestamp(recieved_at_flink::double precision / 1000) at time zone 'gmt-1')) as total_compute_time,
+
+ count(id) / EXTRACT(epoch FROM    max(inserted_at) - to_timestamp(min(recieved_at_flink)::double precision / 1000) at time zone 'gmt-1'   ) as msg_pr_sec
+
+ FROM sentiment
+ group by id
+ order by msg_pr_sec desc;

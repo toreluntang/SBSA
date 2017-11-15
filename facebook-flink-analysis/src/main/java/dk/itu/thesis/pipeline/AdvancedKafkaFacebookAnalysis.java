@@ -8,24 +8,20 @@ import dk.itu.thesis.mapper.StanfordMapper;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.io.jdbc.JDBCOutputFormat;
+import org.apache.flink.api.java.tuple.Tuple11;
 import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
-import org.apache.flink.streaming.util.serialization.SimpleStringSchema;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
 
 import java.lang.reflect.Type;
 import java.sql.Types;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.temporal.ChronoField;
-import java.util.*;
-//import org.apache.flink.streaming.connectors.json.JSONParser;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Properties;
 
 public class AdvancedKafkaFacebookAnalysis {
 
@@ -53,7 +49,7 @@ public class AdvancedKafkaFacebookAnalysis {
             password = params.getRequired("sqlpass");
             postgresqldb = params.getRequired("sqldb");
             postgresqlhost = params.getRequired("sqlhost");
-            sqlBatchInterval = params.getInt("sqlBatchInterval", 1);
+            sqlBatchInterval = params.getInt("sqlbatchinterval", 1);
             path = params.get("path", "");
 
 
@@ -72,6 +68,7 @@ public class AdvancedKafkaFacebookAnalysis {
 
             if (null == password)
                 System.err.println("No elephant password specified. Please add --sqlpass <password>");
+
             if (null == postgresqldb)
                 System.err.println("No postgres db specified. Please add --sqldb <db>");
 
@@ -81,7 +78,7 @@ public class AdvancedKafkaFacebookAnalysis {
         }
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.getConfig().setLatencyTrackingInterval(10L);
+        env.getConfig().setLatencyTrackingInterval(2000);
 
 
         // Kafka setup
@@ -146,7 +143,6 @@ public class AdvancedKafkaFacebookAnalysis {
                         FacebookPost.reactions.put("WOW", getReactionCount("WOW", value));
                         FacebookPost.reactions.put("SAD", getReactionCount("SAD", value));
                         FacebookPost.reactions.put("ANGRY", getReactionCount("ANGRY", value));
-
 
                         if (null != value) {
 
@@ -306,7 +302,28 @@ public class AdvancedKafkaFacebookAnalysis {
                     }
                 });
 
+        String outputPath = path.substring(0, path.lastIndexOf("/") + 1) + "out.csv";
+//        outputPath = "/home/tore/Development/Thesis/SBSA/facebook-flink-analysis/out.csv";
 
+        messageSentimentTupleStream.map(new MapFunction<SentimentResult, Tuple11<String, String, String, Double, String, Integer, Integer, Integer, Integer, Integer, Long>>() {
+            @Override
+            public Tuple11<String, String, String, Double, String, Integer, Integer, Integer, Integer, Integer, Long> map(SentimentResult value) throws Exception {
+                return Tuple11.of(
+                        value.facebookPost.id == null ? "" : value.facebookPost.id,
+                        value.facebookPost.username == null ? "" : value.facebookPost.username,
+                        value.facebookPost.concatenatedNews == null ? "" : value.facebookPost.concatenatedNews,
+                        value.sentiment,
+                        value.sentimentString == null ? "" : value.sentimentString,
+                        value.facebookPost.reactions.get("LOVE"),
+                        value.facebookPost.reactions.get("WOW"),
+                        value.facebookPost.reactions.get("HAHA"),
+                        value.facebookPost.reactions.get("SAD"),
+                        value.facebookPost.reactions.get("ANGRY"),
+                        value.facebookPost.recievedAt
+                );
+            }
+        }).
+                writeAsCsv(outputPath, FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
 
 //        resultRow.writeUsingOutputFormat(jdbcOutput);

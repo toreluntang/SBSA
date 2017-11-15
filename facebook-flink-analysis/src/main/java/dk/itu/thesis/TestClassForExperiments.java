@@ -1,3 +1,4 @@
+/*
 package dk.itu.thesis;
 
 import dk.itu.thesis.sentimentprocessor.KerasSentimentProcessor;
@@ -67,9 +68,11 @@ public class TestClassForExperiments {
 
     }
 
-    /*
+    */
+/*
 
-     */
+     *//*
+
     private static void testStanfordIMDB() throws IOException {
         StanfordSentimentProcessor sentimentProcessor = StanfordSentimentProcessor.create();
 
@@ -111,3 +114,4 @@ public class TestClassForExperiments {
         return sentimentList;
     }
 }
+*/
