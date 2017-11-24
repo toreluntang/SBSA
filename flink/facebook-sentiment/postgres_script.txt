@@ -1,0 +1,81 @@
+create table sentiment(
+    id varchar(64),
+    newspage varchar(64),
+    content varchar(512),
+    sentiment_score numeric,
+    sentiment_text varchar(32),
+    reaction_love numeric,
+    reaction_wow numeric,
+    reaction_haha numeric,
+    reaction_sad numeric,
+    reaction_angry numeric,
+    recieved_at_flink bigint,
+    inserted_at TIMESTAMP DEFAULT now()
+);
+
+SELECT
+avg(inserted_at - TO_CHAR(TO_TIMESTAMP(recieved_at_flink / 1000), 'YYYY-MM-DD HH24:MI:SS')::timestamp AT TIME ZONE 'UTC+02')
+FROM sentiment
+
+
+-- Select some values and the latency pr row
+SELECT
+ id, sentiment_score,
+ (recieved_at_flink) as flinktime,
+ TO_CHAR(TO_TIMESTAMP(recieved_at_flink / 1000), 'YYYY-MM-DD HH24:MI:SS')::timestamp WITH TIME ZONE AT TIME ZONE 'UTC' as flink_timestamp,
+ inserted_at::timestamp WITH TIME ZONE AT TIME ZONE 'GMT+1' as postgres_timestamp,
+ ((inserted_at::timestamp WITH TIME ZONE AT TIME ZONE 'GMT+1') -
+  (TO_CHAR(TO_TIMESTAMP(recieved_at_flink / 1000), 'YYYY-MM-DD HH24:MI:SS')::timestamp WITH TIME ZONE AT TIME ZONE 'UTC')) as latency
+ FROM sentiment
+ ORDER BY inserted_at
+
+ -- select amount of messages, average latency pr id
+SELECT
+ id,
+ count(id),
+ avg(
+ ((inserted_at::timestamp WITH TIME ZONE AT TIME ZONE 'GMT+1') -
+  (TO_CHAR(TO_TIMESTAMP(recieved_at_flink / 1000), 'YYYY-MM-DD HH24:MI:SS')::timestamp WITH TIME ZONE AT TIME ZONE 'UTC'))) as latency
+ FROM sentiment
+ group by id
+
+
+
+ SELECT
+  id,
+  count(id),
+
+ AVG(
+  (inserted_at - to_timestamp(recieved_at_flink::double precision / 1000) at time zone 'gmt-1')) as flink_postgres_latency,
+
+ SUM(
+    (inserted_at - to_timestamp(recieved_at_flink::double precision / 1000) at time zone 'gmt-1')) as total_time,
+
+ count(id) / EXTRACT(epoch FROM  SUM(
+    (inserted_at - to_timestamp(recieved_at_flink::double precision / 1000) at time zone 'gmt-1'))) as msg_pr_sec
+
+ FROM sentiment
+ group by id
+ order by id
+
+
+
+
+ SELECT
+  id,
+  count(id),
+  max(inserted_at) - to_timestamp(min(recieved_at_flink)::double precision / 1000) at time zone 'gmt-1' as total_time,
+EXTRACT(epoch FROM    max(inserted_at) - to_timestamp(min(recieved_at_flink)::double precision / 1000) at time zone 'gmt-1'   ),
+  
+
+ AVG(
+  (inserted_at::timestamp(3) - to_timestamp(recieved_at_flink::double precision / 1000) at time zone 'gmt-1')) as flink_postgres_latency,
+
+ SUM(
+    (inserted_at::timestamp(3) - to_timestamp(recieved_at_flink::double precision / 1000) at time zone 'gmt-1')) as total_compute_time,
+
+ count(id) / EXTRACT(epoch FROM    max(inserted_at) - to_timestamp(min(recieved_at_flink)::double precision / 1000) at time zone 'gmt-1'   ) as msg_pr_sec
+
+ FROM sentiment
+ group by id
+ order by msg_pr_sec desc;
