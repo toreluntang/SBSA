@@ -30,8 +30,8 @@ if __name__ == '__main__':
     c.subscribe([kafka_topic])
 
 
-    csv_data = open('out.csv', 'w')
-    csvwriter = csv.writer(csv_data)
+    csv_file = open('out.csv', 'w')
+    csvwriter = csv.writer(csv_file, delimiter=';', quotechar='"')
     count = 0
 
     running = True
@@ -46,11 +46,14 @@ if __name__ == '__main__':
                 if count == 0:
                     header = json_msg.keys()
                     csvwriter.writerow(header)
-                    count += 1
 
                 csvwriter.writerow(json_msg.values())
+                csv_file.flush()
 
+            if ((count + 1) % 1000) == 0:
+                print("Message batch {} consumed to csv.".format((count + 1)))
 
+            count += 1
 
         elif msg.error().code() != KafkaError._PARTITION_EOF:
             print(msg.error())
