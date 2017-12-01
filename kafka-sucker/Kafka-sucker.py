@@ -29,8 +29,8 @@ if __name__ == '__main__':
     c = Consumer(conf)
     c.subscribe([kafka_topic])
 
-
-    csv_file = open('out.csv', 'w')
+    filename = "out_" + msg_id + ".csv"
+    csv_file = open(filename, 'w')
     csvwriter = csv.writer(csv_file, delimiter=';', quotechar='"')
     count = 0
 
